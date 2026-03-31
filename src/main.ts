@@ -1,8 +1,12 @@
 import { createApp } from "vue";
+import { createPinia } from "pinia";
 import App from "./App.vue";
-import { applyRandomPalette } from "./lib/theme";
+import { router } from "./router";
 import "./styles.css";
 
-applyRandomPalette();
+const app = createApp(App);
+const pinia = createPinia();
 
-createApp(App).mount("#app");
+app.use(pinia);
+app.use(router);
+app.mount("#app");

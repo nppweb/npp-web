@@ -18,7 +18,7 @@ const homeUrl = import.meta.env.BASE_URL;
 
       <div class="header-actions">
         <a class="ghost-btn" :href="siteMeta.featuredRepositoryUrl" target="_blank" rel="noreferrer noopener">
-          frontend-app
+          aimsora
         </a>
         <a class="solid-btn" :href="siteMeta.organizationUrl" target="_blank" rel="noreferrer noopener">
           GitHub Org

@@ -1,17 +1,23 @@
 <script setup lang="ts">
-import SiteFooter from "./components/SiteFooter.vue";
-import SiteHeader from "./components/SiteHeader.vue";
-import HomePage from "./pages/HomePage.vue";
+import { computed, onMounted } from "vue";
+import { useRoute } from "vue-router";
+import AppShell from "./components/AppShell.vue";
+import { useAuthStore } from "./stores/auth";
+
+const route = useRoute();
+const authStore = useAuthStore();
+const isPublicRoute = computed(() => route.meta.public === true);
+
+onMounted(async () => {
+  if (!authStore.accessToken && authStore.refreshToken) {
+    await authStore.refresh();
+  }
+});
 </script>
 
 <template>
-  <div class="app-shell">
-    <SiteHeader />
-
-    <main class="main-content">
-      <HomePage />
-    </main>
-
-    <SiteFooter />
-  </div>
+  <router-view v-if="isPublicRoute" />
+  <AppShell v-else>
+    <router-view />
+  </AppShell>
 </template>

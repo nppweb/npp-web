@@ -2,8 +2,8 @@ export const siteMeta = {
   organizationName: "AIMSORA",
   organizationTagline: "Open Intelligence Lab",
   organizationUrl: "https://github.com/aimsora",
-  sourceUrl: "https://github.com/aimsora/.github",
-  featuredRepositoryUrl: "https://github.com/aimsora/frontend-app"
+  sourceUrl: "https://github.com/aimsora/aimsora",
+  featuredRepositoryUrl: "https://github.com/aimsora/aimsora"
 } as const;
 
 export const capabilities = [
@@ -31,9 +31,9 @@ export const capabilities = [
 
 export const repositories = [
   {
-    name: "frontend-app",
+    name: "aimsora",
     role: "Веб-интерфейс пользователей: поиск, фильтры, витрины аналитики.",
-    url: "https://github.com/aimsora/frontend-app"
+    url: "https://github.com/aimsora/aimsora"
   },
   {
     name: "backend-api",
@@ -63,7 +63,7 @@ export const repositories = [
 ] as const;
 
 export const architectureLayers = [
-  "Уровень интерфейса: frontend-app (Nuxt SPA)",
+  "Уровень интерфейса: aimsora (Vue SPA)",
   "Уровень бизнес-логики: backend-api (NestJS + GraphQL)",
   "Уровень сбора данных: scraper-service (Playwright)",
   "Уровень обработки: processing-worker (RabbitMQ consumers)",
@@ -77,7 +77,7 @@ export const deployFlow = [
   "Сборка и деплой backend-api через GitHub Actions",
   "Сборка и деплой processing-worker через GitHub Actions",
   "Сборка и деплой scraper-service через GitHub Actions",
-  "Сборка и деплой frontend-app через GitHub Actions"
+  "Сборка и деплой aimsora через GitHub Actions"
 ] as const;
 
 export const platformFlow = [

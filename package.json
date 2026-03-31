@@ -1,5 +1,5 @@
 {
-  "name": "aimsora-site",
+  "name": "aimsora",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "vue": "^3.5.18"
+    "@apollo/client": "^3.13.8",
+    "graphql": "^16.11.0",
+    "pinia": "^3.0.2",
+    "vue": "^3.5.18",
+    "vue-router": "^4.5.1"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
