@@ -1,18 +1,23 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import PageHeader from "../components/layout/PageHeader.vue";
 import SummaryCard from "../components/dashboard/SummaryCard.vue";
-import UiBadge from "../components/ui/UiBadge.vue";
-import UiButton from "../components/ui/UiButton.vue";
-import UiCard from "../components/ui/UiCard.vue";
-import UiEmptyState from "../components/ui/UiEmptyState.vue";
-import UiErrorState from "../components/ui/UiErrorState.vue";
-import UiSkeleton from "../components/ui/UiSkeleton.vue";
-import UiTable from "../components/ui/UiTable.vue";
-import { badgeTone, formatDateTime, formatEnumLabel } from "../lib/format";
-import { apolloClient } from "../services/apollo";
-import type { Report } from "../services/graphql-types";
-import { REPORTS_QUERY } from "../services/queries";
+import EmptyState from "../components/feedback/EmptyState.vue";
+import ErrorState from "../components/feedback/ErrorState.vue";
+import PageHeader from "../components/layout/PageHeader.vue";
+import Badge from "../components/ui/badge/Badge.vue";
+import Button from "../components/ui/button/Button.vue";
+import Card from "../components/ui/card/Card.vue";
+import Skeleton from "../components/ui/skeleton/Skeleton.vue";
+import Table from "../components/ui/table/Table.vue";
+import TableBody from "../components/ui/table/TableBody.vue";
+import TableCell from "../components/ui/table/TableCell.vue";
+import TableHead from "../components/ui/table/TableHead.vue";
+import TableHeader from "../components/ui/table/TableHeader.vue";
+import TableRow from "../components/ui/table/TableRow.vue";
+import { badgeVariant, formatDateTime, formatEnumLabel } from "../lib/format";
+import { apolloClient } from "../graphql/apollo";
+import type { Report } from "../graphql/types";
+import { REPORTS_QUERY } from "../graphql/queries";
 
 const loading = ref(true);
 const error = ref("");
@@ -20,9 +25,9 @@ const reports = ref<Report[]>([]);
 
 const summary = computed(() => [
   {
-    label: "Всего отчетов",
+    label: "Всего отчётов",
     value: String(reports.value.length),
-    hint: "Все аналитические отчеты в системе"
+    hint: "Все аналитические отчёты в системе"
   },
   {
     label: "Готовы",
@@ -42,6 +47,9 @@ const summary = computed(() => [
 ]);
 
 async function loadReports() {
+  loading.value = true;
+  error.value = "";
+
   try {
     const { data } = await apolloClient.query<{ reports: Report[] }>({
       query: REPORTS_QUERY,
@@ -50,7 +58,7 @@ async function loadReports() {
 
     reports.value = data.reports;
   } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : "Не удалось загрузить отчеты";
+    error.value = caught instanceof Error ? caught.message : "Не удалось загрузить отчёты";
   } finally {
     loading.value = false;
   }
@@ -63,20 +71,24 @@ onMounted(() => {
 
 <template>
   <PageHeader
-    title="Отчеты"
-    description="Сводка по состоянию аналитических отчетов платформы."
+    title="Отчёты"
+    description="Сводка по состоянию аналитических отчётов платформы."
   >
     <template #actions>
-      <UiButton variant="secondary" @click="loadReports">Обновить</UiButton>
+      <Button variant="secondary" :disabled="loading" @click="loadReports">
+        {{ loading ? "Обновление..." : "Обновить" }}
+      </Button>
     </template>
   </PageHeader>
 
   <div v-if="loading" class="stats-grid">
-    <UiCard v-for="item in 4" :key="item"><UiSkeleton :lines="3" /></UiCard>
+    <Skeleton v-for="item in 4" :key="item" :lines="3" />
   </div>
-  <UiCard v-else-if="error">
-    <UiErrorState :description="error" action-label="Повторить" @action="loadReports" />
-  </UiCard>
+
+  <Card v-else-if="error" class="error-card">
+    <ErrorState :description="error" action-label="Повторить" @action="loadReports" />
+  </Card>
+
   <template v-else>
     <div class="stats-grid">
       <SummaryCard
@@ -88,36 +100,44 @@ onMounted(() => {
       />
     </div>
 
-    <UiCard>
-      <UiEmptyState
+    <Card class="table-card">
+      <div class="table-card__header">
+        <div>
+          <h2>Список отчётов</h2>
+          <p class="data-note">Статус, описание и время последнего обновления по каждому отчёту.</p>
+        </div>
+      </div>
+
+      <EmptyState
         v-if="reports.length === 0"
-        title="Отчеты отсутствуют"
-        description="Когда backend начнет формировать отчеты, они появятся в этом разделе."
+        title="Отчёты отсутствуют"
+        description="Когда сервер начнёт формировать отчёты, они появятся в этом разделе."
       />
-      <UiTable v-else>
-        <thead>
-          <tr>
-            <th>Отчет</th>
-            <th>Статус</th>
-            <th>Описание</th>
-            <th>Обновлен</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="report in reports" :key="report.id">
-            <td>
+
+      <Table v-else>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Отчёт</TableHead>
+            <TableHead>Статус</TableHead>
+            <TableHead>Описание</TableHead>
+            <TableHead>Обновлён</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow v-for="report in reports" :key="report.id">
+            <TableCell>
               <strong>{{ report.name }}</strong>
-            </td>
-            <td>
-              <UiBadge :tone="badgeTone(report.status)">
+            </TableCell>
+            <TableCell>
+              <Badge :variant="badgeVariant(report.status)">
                 {{ formatEnumLabel(report.status) }}
-              </UiBadge>
-            </td>
-            <td>{{ report.description || "Описание не задано" }}</td>
-            <td>{{ formatDateTime(report.updatedAt) }}</td>
-          </tr>
-        </tbody>
-      </UiTable>
-    </UiCard>
+              </Badge>
+            </TableCell>
+            <TableCell>{{ report.description || "Описание не задано" }}</TableCell>
+            <TableCell>{{ formatDateTime(report.updatedAt) }}</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </Card>
   </template>
 </template>

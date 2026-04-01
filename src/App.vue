@@ -1,16 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed } from "vue";
 import { useRoute } from "vue-router";
-import AppShell from "./components/AppShell.vue";
-import { useAuthStore } from "./stores/auth";
+import AppShell from "./components/layout/AppShell.vue";
+import Toaster from "./components/ui/toast/Toaster.vue";
 
 const route = useRoute();
-const authStore = useAuthStore();
 const isPublicRoute = computed(() => route.meta.public === true);
-
-onMounted(async () => {
-  await authStore.initialize();
-});
 </script>
 
 <template>
@@ -18,4 +13,5 @@ onMounted(async () => {
   <AppShell v-else>
     <router-view />
   </AppShell>
+  <Toaster />
 </template>

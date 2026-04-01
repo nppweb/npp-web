@@ -1,12 +1,12 @@
 import { defineStore } from "pinia";
-import { apolloClient } from "../services/apollo";
-import type { AuthPayload, SessionUser } from "../services/graphql-types";
+import { apolloClient } from "../graphql/apollo";
+import type { AuthPayload, SessionUser } from "../graphql/types";
 import {
   LOGIN_MUTATION,
   LOGOUT_MUTATION,
   ME_QUERY,
   REFRESH_MUTATION
-} from "../services/queries";
+} from "../graphql/queries";
 
 let initializationTask: Promise<void> | null = null;
 

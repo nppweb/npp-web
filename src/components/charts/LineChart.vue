@@ -68,3 +68,54 @@ const areaPoints = computed(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.chart-empty {
+  padding: 0.35rem 0;
+  color: var(--muted-foreground);
+}
+
+.line-chart {
+  display: grid;
+  gap: 1rem;
+}
+
+.line-chart svg {
+  width: 100%;
+  height: 220px;
+}
+
+.line-chart-area {
+  fill: rgba(31, 79, 209, 0.1);
+}
+
+.line-chart-line {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 2;
+}
+
+.line-chart-dot {
+  fill: var(--primary);
+}
+
+.line-chart-labels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
+  gap: 0.5rem;
+}
+
+.line-chart-label {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.line-chart-label strong {
+  font-size: 1rem;
+}
+
+.line-chart-label span {
+  color: var(--muted-foreground);
+  font-size: 0.82rem;
+}
+</style>

@@ -1,30 +1,26 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
-import { RouterLink, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
+import EmptyState from "../components/feedback/EmptyState.vue";
+import ErrorState from "../components/feedback/ErrorState.vue";
 import PageHeader from "../components/layout/PageHeader.vue";
-import UiBadge from "../components/ui/UiBadge.vue";
-import UiButton from "../components/ui/UiButton.vue";
-import UiCard from "../components/ui/UiCard.vue";
-import UiEmptyState from "../components/ui/UiEmptyState.vue";
-import UiErrorState from "../components/ui/UiErrorState.vue";
-import UiInput from "../components/ui/UiInput.vue";
-import UiSelect from "../components/ui/UiSelect.vue";
-import UiSkeleton from "../components/ui/UiSkeleton.vue";
-import UiTable from "../components/ui/UiTable.vue";
-import {
-  badgeTone,
-  formatCurrency,
-  formatDate,
-  formatEnumLabel
-} from "../lib/format";
-import { apolloClient } from "../services/apollo";
-import type {
-  Procurement,
-  ProcurementPage,
-  ProcurementStatus,
-  Source
-} from "../services/graphql-types";
-import { PROCUREMENTS_QUERY, SOURCES_QUERY } from "../services/queries";
+import Badge from "../components/ui/badge/Badge.vue";
+import Button from "../components/ui/button/Button.vue";
+import Card from "../components/ui/card/Card.vue";
+import Input from "../components/ui/input/Input.vue";
+import Label from "../components/ui/label/Label.vue";
+import Select from "../components/ui/select/Select.vue";
+import Skeleton from "../components/ui/skeleton/Skeleton.vue";
+import Table from "../components/ui/table/Table.vue";
+import TableBody from "../components/ui/table/TableBody.vue";
+import TableCell from "../components/ui/table/TableCell.vue";
+import TableHead from "../components/ui/table/TableHead.vue";
+import TableHeader from "../components/ui/table/TableHeader.vue";
+import TableRow from "../components/ui/table/TableRow.vue";
+import { badgeVariant, formatCurrency, formatDate, formatEnumLabel } from "../lib/format";
+import { apolloClient } from "../graphql/apollo";
+import type { Procurement, ProcurementPage, ProcurementStatus, Source } from "../graphql/types";
+import { PROCUREMENTS_QUERY, SOURCES_QUERY } from "../graphql/queries";
 
 const router = useRouter();
 const loading = ref(false);
@@ -94,10 +90,9 @@ function resetFilters() {
   void load();
 }
 
-onMounted(() => {
-  void loadSources();
-  void load();
-});
+function openDetail(id: string) {
+  void router.push(`/procurements/${id}`);
+}
 
 const statusOptions = [
   { label: "Все статусы", value: "" },
@@ -106,6 +101,11 @@ const statusOptions = [
   { label: "Завершена", value: "CLOSED" },
   { label: "В архиве", value: "ARCHIVED" }
 ];
+
+onMounted(() => {
+  void loadSources();
+  void load();
+});
 </script>
 
 <template>
@@ -114,89 +114,111 @@ const statusOptions = [
     description="Поиск, фильтрация и переход к детальной карточке закупки."
   >
     <template #actions>
-      <UiButton variant="secondary" @click="load">Обновить</UiButton>
+      <Button variant="secondary" :disabled="loading" @click="load">
+        {{ loading ? "Обновление..." : "Обновить" }}
+      </Button>
     </template>
   </PageHeader>
 
-  <UiCard>
-    <form class="toolbar-row" @submit.prevent="load">
-      <UiInput
-        v-model="filters.search"
-        label="Поиск"
-        placeholder="Название, заказчик или поставщик"
-      />
-      <UiSelect
-        v-model="filters.source"
-        label="Источник"
-        :options="[
-          { label: 'Все источники', value: '' },
-          ...sources.map((item) => ({ label: item.name, value: item.code }))
-        ]"
-      />
-      <UiSelect v-model="filters.status" label="Статус" :options="statusOptions" />
-      <div class="inline-actions">
-        <UiButton type="submit">Применить</UiButton>
-        <UiButton type="button" variant="ghost" @click="resetFilters">Сбросить</UiButton>
-      </div>
-    </form>
-  </UiCard>
-
-  <UiCard v-if="loading">
-    <UiSkeleton :lines="7" />
-  </UiCard>
-  <UiCard v-else-if="error">
-    <UiErrorState :description="error" action-label="Повторить" @action="load" />
-  </UiCard>
-  <UiCard v-else>
+  <Card class="surface-stack">
     <div class="panel-title">
       <div>
-        <h2>Результаты</h2>
-        <p>Найдено записей: {{ total }}</p>
+        <h2>Фильтры</h2>
+        <p class="data-note">Уточните выборку по тексту, источнику и статусу.</p>
+      </div>
+      <Badge variant="secondary">Найдено: {{ total }}</Badge>
+    </div>
+
+    <form class="filters-grid" @submit.prevent="load">
+      <label class="field">
+        <Label for="procurement-search">Поиск</Label>
+        <Input
+          id="procurement-search"
+          v-model="filters.search"
+          placeholder="Название, заказчик или поставщик"
+        />
+      </label>
+
+      <label class="field">
+        <Label for="procurement-source">Источник</Label>
+        <Select
+          id="procurement-source"
+          v-model="filters.source"
+          :options="[
+            { label: 'Все источники', value: '' },
+            ...sources.map((item) => ({ label: item.name, value: item.code }))
+          ]"
+        />
+      </label>
+
+      <label class="field">
+        <Label for="procurement-status">Статус</Label>
+        <Select id="procurement-status" v-model="filters.status" :options="statusOptions" />
+      </label>
+
+      <div class="inline-actions">
+        <Button type="submit" :disabled="loading">{{ loading ? "Применение..." : "Применить" }}</Button>
+        <Button type="button" variant="ghost" :disabled="loading" @click="resetFilters">Сбросить</Button>
+      </div>
+    </form>
+  </Card>
+
+  <Card v-if="loading" class="loading-card">
+    <Skeleton :lines="7" />
+  </Card>
+
+  <Card v-else-if="error" class="error-card">
+    <ErrorState :description="error" action-label="Повторить" @action="load" />
+  </Card>
+
+  <Card v-else class="table-card">
+    <div class="table-card__header">
+      <div>
+        <h2>Список закупок</h2>
+        <p class="data-note">Клик по строке открывает детальную карточку закупки.</p>
       </div>
     </div>
 
-    <UiEmptyState
+    <EmptyState
       v-if="items.length === 0"
       title="Ничего не найдено"
       description="Измените параметры поиска или сбросьте фильтры."
     />
 
-    <UiTable v-else>
-      <thead>
-        <tr>
-          <th>Закупка</th>
-          <th>Источник</th>
-          <th>Заказчик</th>
-          <th>Сумма</th>
-          <th>Статус</th>
-          <th>Опубликована</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
+    <Table v-else>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Закупка</TableHead>
+          <TableHead>Источник</TableHead>
+          <TableHead>Заказчик</TableHead>
+          <TableHead>Сумма</TableHead>
+          <TableHead>Статус</TableHead>
+          <TableHead>Опубликована</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow
           v-for="item in items"
           :key="item.id"
           class="clickable-row"
-          @click="router.push(`/procurements/${item.id}`)"
+          @click="openDetail(item.id)"
         >
-          <td>
+          <TableCell>
             <strong>{{ item.title }}</strong>
             <div class="table-subtitle">{{ item.externalId }}</div>
-            <RouterLink class="text-link" :to="`/procurements/${item.id}`">
-              Открыть карточку
-            </RouterLink>
-          </td>
-          <td>{{ item.source }}</td>
-          <td>{{ item.customer || "Не указан" }}</td>
-          <td>{{ formatCurrency(item.amount, item.currency) }}</td>
-          <td>
-            <UiBadge :tone="badgeTone(item.status)">
+            <span class="table-link">Открыть карточку</span>
+          </TableCell>
+          <TableCell>{{ item.source }}</TableCell>
+          <TableCell>{{ item.customer || "Не указан" }}</TableCell>
+          <TableCell>{{ formatCurrency(item.amount, item.currency) }}</TableCell>
+          <TableCell>
+            <Badge :variant="badgeVariant(item.status)">
               {{ formatEnumLabel(item.status) }}
-            </UiBadge>
-          </td>
-          <td>{{ formatDate(item.publishedAt) }}</td>
-        </tr>
-      </tbody>
-    </UiTable>
-  </UiCard>
+            </Badge>
+          </TableCell>
+          <TableCell>{{ formatDate(item.publishedAt) }}</TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  </Card>
 </template>

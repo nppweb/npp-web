@@ -45,3 +45,52 @@ function width(value: number) {
     </article>
   </div>
 </template>
+
+<style scoped>
+.chart-empty {
+  padding: 0.35rem 0;
+  color: var(--muted-foreground);
+}
+
+.chart-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.chart-row {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.chart-row-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.chart-row-head strong,
+.chart-row-head span,
+.chart-row small {
+  margin: 0;
+}
+
+.chart-row-head span,
+.chart-row small {
+  color: var(--muted-foreground);
+}
+
+.chart-track {
+  width: 100%;
+  height: 0.6rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border-subtle);
+}
+
+.chart-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), color-mix(in srgb, var(--primary) 72%, white));
+}
+</style>

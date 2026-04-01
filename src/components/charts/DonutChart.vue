@@ -76,3 +76,86 @@ const normalizedSegments = computed(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.chart-empty {
+  padding: 0.35rem 0;
+  color: var(--muted-foreground);
+}
+
+.donut-chart {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: center;
+}
+
+.donut-visual {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  margin: 0 auto;
+}
+
+.donut-visual svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.donut-base,
+.donut-segment {
+  fill: none;
+  stroke-width: 12;
+}
+
+.donut-base {
+  stroke: var(--border-subtle);
+}
+
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
+.donut-center strong {
+  font-size: 2rem;
+}
+
+.donut-center span {
+  color: var(--muted-foreground);
+}
+
+.donut-legend {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.legend-row,
+.legend-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.legend-dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.legend-row span {
+  color: var(--muted-foreground);
+}
+
+@media (max-width: 720px) {
+  .donut-chart {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

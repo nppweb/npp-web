@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import UiBadge from "../ui/UiBadge.vue";
-import UiButton from "../ui/UiButton.vue";
+import Avatar from "../ui/avatar/Avatar.vue";
+import Badge from "../ui/badge/Badge.vue";
+import Button from "../ui/button/Button.vue";
+import DropdownMenu from "../ui/dropdown-menu/DropdownMenu.vue";
 import { useAuthStore } from "../../stores/auth";
 import { formatRoleLabel } from "../../lib/format";
 
@@ -22,6 +24,16 @@ async function logout() {
   await authStore.logout();
   await router.push("/login");
 }
+
+const menuItems = computed(() => [
+  {
+    label: authStore.loggingOut ? "Выход выполняется..." : "Выйти",
+    hint: "Завершить текущую сессию",
+    destructive: true,
+    disabled: authStore.loggingOut,
+    onSelect: logout
+  }
+]);
 </script>
 
 <template>
@@ -33,19 +45,17 @@ async function logout() {
     </div>
 
     <div class="app-topbar__user">
-      <div class="app-topbar__user-copy">
-        <strong>{{ authStore.user?.fullName }}</strong>
+      <Avatar :fallback="authStore.user?.fullName || 'AIMSORA'" />
+      <div class="app-topbar__user-summary app-topbar__user-copy">
+        <strong>{{ authStore.user?.fullName || "Пользователь" }}</strong>
         <span>{{ authStore.user?.email }}</span>
       </div>
-      <UiBadge tone="neutral">{{ formatRoleLabel(authStore.user?.role) }}</UiBadge>
-      <UiButton
-        variant="secondary"
-        size="sm"
-        :disabled="authStore.loggingOut"
-        @click="logout"
-      >
-        {{ authStore.loggingOut ? "Выход..." : "Выйти" }}
-      </UiButton>
+      <Badge variant="secondary">{{ formatRoleLabel(authStore.user?.role) }}</Badge>
+      <DropdownMenu :items="menuItems" label="Открыть меню пользователя">
+        <template #trigger>
+          <Button type="button" variant="outline" size="sm">Меню</Button>
+        </template>
+      </DropdownMenu>
     </div>
   </header>
 </template>

@@ -1,23 +1,28 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import PageHeader from "../components/layout/PageHeader.vue";
 import SummaryCard from "../components/dashboard/SummaryCard.vue";
-import UiBadge from "../components/ui/UiBadge.vue";
-import UiButton from "../components/ui/UiButton.vue";
-import UiCard from "../components/ui/UiCard.vue";
-import UiEmptyState from "../components/ui/UiEmptyState.vue";
-import UiErrorState from "../components/ui/UiErrorState.vue";
-import UiSkeleton from "../components/ui/UiSkeleton.vue";
-import UiTable from "../components/ui/UiTable.vue";
+import EmptyState from "../components/feedback/EmptyState.vue";
+import ErrorState from "../components/feedback/ErrorState.vue";
+import PageHeader from "../components/layout/PageHeader.vue";
+import Badge from "../components/ui/badge/Badge.vue";
+import Button from "../components/ui/button/Button.vue";
+import Card from "../components/ui/card/Card.vue";
+import Skeleton from "../components/ui/skeleton/Skeleton.vue";
+import Table from "../components/ui/table/Table.vue";
+import TableBody from "../components/ui/table/TableBody.vue";
+import TableCell from "../components/ui/table/TableCell.vue";
+import TableHead from "../components/ui/table/TableHead.vue";
+import TableHeader from "../components/ui/table/TableHeader.vue";
+import TableRow from "../components/ui/table/TableRow.vue";
 import {
-  badgeTone,
+  badgeVariant,
   formatDateTime,
   formatEnumLabel,
   formatNumber
 } from "../lib/format";
-import { apolloClient } from "../services/apollo";
-import type { Source, SourceRun } from "../services/graphql-types";
-import { SOURCES_QUERY, SOURCE_RUNS_QUERY } from "../services/queries";
+import { apolloClient } from "../graphql/apollo";
+import type { Source, SourceRun } from "../graphql/types";
+import { SOURCES_QUERY, SOURCE_RUNS_QUERY } from "../graphql/queries";
 
 const loading = ref(true);
 const error = ref("");
@@ -39,22 +44,25 @@ const summaryCards = computed(() => {
     {
       label: "Всего источников",
       value: formatNumber(items.value.length),
-      hint: "Реестр подключенных источников в платформе"
+      hint: "Подключённые каналы, доступные системе"
     },
     {
       label: "Активные",
       value: formatNumber(activeCount),
-      hint: "Источники, доступные для регулярного сбора"
+      hint: "Источники, участвующие в регулярном сборе"
     },
     {
       label: "С ошибками",
       value: formatNumber(withFailures),
-      hint: "Источники с последним запуском в статусе ошибки"
+      hint: "Источники с последним запуском в ошибочном статусе"
     }
   ];
 });
 
 async function loadSources() {
+  loading.value = true;
+  error.value = "";
+
   try {
     const [sourcesResult, runsResult] = await Promise.all([
       apolloClient.query<{ sources: Source[] }>({
@@ -85,19 +93,23 @@ onMounted(() => {
 <template>
   <PageHeader
     title="Источники"
-    description="Статус подключенных источников и их последних запусков."
+    description="Статус подключённых источников и состояние их последних запусков."
   >
     <template #actions>
-      <UiButton variant="secondary" @click="loadSources">Обновить</UiButton>
+      <Button variant="secondary" :disabled="loading" @click="loadSources">
+        {{ loading ? "Обновление..." : "Обновить" }}
+      </Button>
     </template>
   </PageHeader>
 
   <div v-if="loading" class="stats-grid">
-    <UiCard v-for="item in 3" :key="item"><UiSkeleton :lines="3" /></UiCard>
+    <Skeleton v-for="item in 3" :key="item" :lines="3" />
   </div>
-  <UiCard v-else-if="error">
-    <UiErrorState :description="error" action-label="Повторить" @action="loadSources" />
-  </UiCard>
+
+  <Card v-else-if="error" class="error-card">
+    <ErrorState :description="error" action-label="Повторить" @action="loadSources" />
+  </Card>
+
   <template v-else>
     <div class="stats-grid">
       <SummaryCard
@@ -110,76 +122,91 @@ onMounted(() => {
     </div>
 
     <section class="cards-grid">
-      <article v-for="item in sourceRows" :key="item.id" class="source-card">
-        <div class="panel-title">
-          <div>
-            <p class="section-hint">{{ formatEnumLabel(item.kind) }}</p>
+      <Card v-for="item in sourceRows" :key="item.id" class="source-overview-card">
+        <div class="source-card__header">
+          <div class="source-card__meta">
+            <span class="section-hint">{{ formatEnumLabel(item.kind) }}</span>
             <h3>{{ item.name }}</h3>
+            <p class="data-note">{{ item.description || "Описание для источника пока не заполнено." }}</p>
           </div>
-          <UiBadge :tone="item.isActive ? 'success' : 'danger'">
+          <Badge :variant="item.isActive ? 'success' : 'destructive'">
             {{ item.isActive ? "Активен" : "Неактивен" }}
-          </UiBadge>
+          </Badge>
         </div>
-        <p>{{ item.description || "Описание для источника пока не заполнено." }}</p>
-        <div class="table-subtitle">{{ item.code }}</div>
-        <div v-if="item.lastRun" class="source-meta">
-          <UiBadge :tone="badgeTone(item.lastRun.status)">
+
+        <div class="source-status-row">
+          <Badge variant="secondary">{{ item.code }}</Badge>
+          <Badge v-if="item.lastRun" :variant="badgeVariant(item.lastRun.status)">
             {{ formatEnumLabel(item.lastRun.status) }}
-          </UiBadge>
-          <span class="muted-text">Запуск: {{ formatDateTime(item.lastRun.startedAt) }}</span>
+          </Badge>
+          <span v-else class="muted-text">Запусков пока не было</span>
         </div>
+
+        <div class="meta-list">
+          <div class="meta-list__row">
+            <strong>Последний запуск</strong>
+            <span>{{ item.lastRun ? formatDateTime(item.lastRun.startedAt) : "Нет данных" }}</span>
+          </div>
+          <div class="meta-list__row">
+            <strong>Опубликовано записей</strong>
+            <span>{{ formatNumber(item.lastRun?.itemsPublished) }}</span>
+          </div>
+        </div>
+
         <a
           v-if="item.baseUrl"
-          class="text-link"
+          class="table-link"
           :href="item.baseUrl"
           target="_blank"
           rel="noreferrer"
         >
           Открыть адрес источника
         </a>
-      </article>
+      </Card>
     </section>
 
-    <UiCard>
-      <div class="panel-title">
+    <Card class="table-card">
+      <div class="table-card__header">
         <div>
           <h2>Последние запуски по источникам</h2>
-          <p>Быстрый срез по публикации и ошибкам для каждого источника.</p>
+          <p class="data-note">Оперативный срез по публикациям и ошибкам для каждого источника.</p>
         </div>
       </div>
-      <UiEmptyState
+
+      <EmptyState
         v-if="sourceRows.length === 0"
         title="Источники не найдены"
-        description="После подключения источников здесь появится сводка по их запуску."
+        description="После подключения источников здесь появится таблица со статусами."
       />
-      <UiTable v-else>
-        <thead>
-          <tr>
-            <th>Источник</th>
-            <th>Последний запуск</th>
-            <th>Опубликовано</th>
-            <th>Ошибки</th>
-            <th>Обновлено</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in sourceRows" :key="item.id">
-            <td>{{ item.name }}</td>
-            <td>
-              <UiBadge
-                v-if="item.lastRun"
-                :tone="badgeTone(item.lastRun.status)"
-              >
+
+      <Table v-else>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Источник</TableHead>
+            <TableHead>Последний запуск</TableHead>
+            <TableHead>Опубликовано</TableHead>
+            <TableHead>Ошибки</TableHead>
+            <TableHead>Обновлено</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow v-for="item in sourceRows" :key="item.id">
+            <TableCell>
+              <strong>{{ item.name }}</strong>
+              <div class="table-subtitle">{{ item.code }}</div>
+            </TableCell>
+            <TableCell>
+              <Badge v-if="item.lastRun" :variant="badgeVariant(item.lastRun.status)">
                 {{ formatEnumLabel(item.lastRun.status) }}
-              </UiBadge>
+              </Badge>
               <span v-else class="muted-text">Запусков пока не было</span>
-            </td>
-            <td>{{ formatNumber(item.lastRun?.itemsPublished) }}</td>
-            <td>{{ formatNumber(item.lastRun?.itemsFailed) }}</td>
-            <td>{{ item.lastRun ? formatDateTime(item.lastRun.startedAt) : "Нет данных" }}</td>
-          </tr>
-        </tbody>
-      </UiTable>
-    </UiCard>
+            </TableCell>
+            <TableCell>{{ formatNumber(item.lastRun?.itemsPublished) }}</TableCell>
+            <TableCell>{{ formatNumber(item.lastRun?.itemsFailed) }}</TableCell>
+            <TableCell>{{ item.lastRun ? formatDateTime(item.lastRun.startedAt) : "Нет данных" }}</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </Card>
   </template>
 </template>

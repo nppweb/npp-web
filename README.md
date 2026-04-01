@@ -1,23 +1,27 @@
 # aimsora
 
-Frontend-оболочка платформы AIMSORA. Это Vue 3 SPA поверх GraphQL backend: публичная landing page, login flow, dashboard control room, закупки, источники, jobs, reports и users/admin actions.
+Frontend AIMSORA на `Vue 3 + Vite + TypeScript + Pinia + Apollo`.
+Приложение стартует с авторизации и после входа открывает внутренний рабочий интерфейс: дашборд, закупки, источники, запуски, отчёты и пользователей.
 
-## Стек
+## Локальный запуск
 
-- Vue 3 + TypeScript
-- Vue Router
-- Pinia
-- Apollo GraphQL Client
-- Vite
-- Nginx + Docker для production bundle
+1. Подними `backend-api` и базу данных.
+2. Убедись, что сервер применил миграции и seed с тестовыми пользователями.
+3. Установи зависимости и запусти frontend:
 
-## Env vars
+```bash
+npm install
+npm run dev
+```
+
+По умолчанию приложение доступно на `http://localhost:4173`.
+
+## Переменные окружения
 
 - `VITE_GRAPHQL_ENDPOINT`
-  По умолчанию используется `/graphql`.
-  Подходит для Docker/Nginx и для локального Vite dev-server через proxy.
+  По умолчанию `/graphql`.
 - `VITE_GRAPHQL_PROXY_TARGET`
-  Используется только локально в `vite.config.ts`.
+  Используется только локально для проксирования запросов из Vite.
   По умолчанию `http://localhost:3000`.
 
 Пример:
@@ -27,53 +31,39 @@ VITE_GRAPHQL_ENDPOINT=/graphql
 VITE_GRAPHQL_PROXY_TARGET=http://localhost:3000
 ```
 
-## Local run
+## Тестовый вход
 
-1. Подними `backend-api` и базу данных.
-2. Выполни миграции и seed в backend, чтобы появились demo-данные и пользователи.
-3. Запусти frontend.
-
-```bash
-npm install
-npm run dev
-```
-
-Frontend по умолчанию доступен на `http://localhost:4173`.
-
-Если backend поднят локально на `http://localhost:3000`, дополнительная настройка endpoint не нужна: Vite проксирует `/graphql` в backend автоматически.
-
-## Demo login
-
-Для локального demo используется реальный backend login, а не fake auth.
+Для локальной среды можно использовать:
 
 - `admin@admin.ru / admin`
 
-Эти credentials показываются на странице `/login` в local/dev mode. Для их доступности backend должен быть seeded.
+Эти данные показываются на странице `/login` только в `dev/local` режиме.
 
-## Available routes
+## Основные маршруты
 
-- `/` - публичная landing page
-- `/login` - публичная страница входа
-- `/dashboard` - control room / summary / charts / recent data
-- `/procurements` - список закупок
-- `/procurements/:id` - карточка закупки
-- `/sources` - источники и их последний run status
-- `/jobs` - source runs / jobs
-- `/reports` - список отчётов
-- `/users` - администрирование пользователей, доступно `ADMIN`
+- `/` — редирект на `/login` или `/dashboard` в зависимости от сессии
+- `/login` — публичная страница входа
+- `/dashboard` — оперативная сводка по системе
+- `/procurements` — список закупок
+- `/procurements/:id` — карточка закупки
+- `/sources` — источники и последние запуски
+- `/jobs` — журнал запусков
+- `/reports` — список отчётов
+- `/users` — управление пользователями, доступно только `ADMIN`
 
-## Auth flow
+## Что проверить после запуска
 
-- `/` всегда открыт и служит entry page проекта
-- успешный login ведёт на `/dashboard`
-- защищённые маршруты требуют токен
-- после refresh auth восстанавливается из сохранённой сессии
-- logout вызывает backend mutation `logout`, очищает local state и возвращает пользователя на landing
+1. Открывается `/login`, а `/` редиректит корректно.
+2. Успешный вход переводит на `/dashboard`.
+3. После обновления страницы сессия сохраняется, если токен валиден.
+4. `ADMIN` видит раздел `/users`, остальные пользователи его не видят.
+5. `logout` возвращает на `/login`.
+6. На всех основных страницах работают `loading / empty / error` состояния.
 
-## Build
+## Сборка
 
 ```bash
 npm run build
 ```
 
-Production bundle складывается в `dist/`.
+Собранный production bundle попадает в `dist/`.

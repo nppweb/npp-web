@@ -1,30 +1,38 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
+import EmptyState from "../components/feedback/EmptyState.vue";
+import ErrorState from "../components/feedback/ErrorState.vue";
 import PageHeader from "../components/layout/PageHeader.vue";
-import UiBadge from "../components/ui/UiBadge.vue";
-import UiButton from "../components/ui/UiButton.vue";
-import UiCard from "../components/ui/UiCard.vue";
-import UiDialog from "../components/ui/UiDialog.vue";
-import UiEmptyState from "../components/ui/UiEmptyState.vue";
-import UiErrorState from "../components/ui/UiErrorState.vue";
-import UiInput from "../components/ui/UiInput.vue";
-import UiSelect from "../components/ui/UiSelect.vue";
-import UiSkeleton from "../components/ui/UiSkeleton.vue";
-import UiTable from "../components/ui/UiTable.vue";
-import { badgeTone, formatDateTime, formatEnumLabel } from "../lib/format";
-import { apolloClient } from "../services/apollo";
-import type { AppUser, UserRole } from "../services/graphql-types";
+import AlertDialog from "../components/ui/alert-dialog/AlertDialog.vue";
+import Avatar from "../components/ui/avatar/Avatar.vue";
+import Badge from "../components/ui/badge/Badge.vue";
+import Button from "../components/ui/button/Button.vue";
+import Card from "../components/ui/card/Card.vue";
+import Dialog from "../components/ui/dialog/Dialog.vue";
+import Input from "../components/ui/input/Input.vue";
+import Label from "../components/ui/label/Label.vue";
+import Select from "../components/ui/select/Select.vue";
+import Skeleton from "../components/ui/skeleton/Skeleton.vue";
+import Table from "../components/ui/table/Table.vue";
+import TableBody from "../components/ui/table/TableBody.vue";
+import TableCell from "../components/ui/table/TableCell.vue";
+import TableHead from "../components/ui/table/TableHead.vue";
+import TableHeader from "../components/ui/table/TableHeader.vue";
+import TableRow from "../components/ui/table/TableRow.vue";
+import { badgeVariant, formatDateTime, formatEnumLabel } from "../lib/format";
+import { toast } from "../lib/utils/toast";
+import { apolloClient } from "../graphql/apollo";
+import type { AppUser, UserRole } from "../graphql/types";
 import { useAuthStore } from "../stores/auth";
 import {
   CREATE_USER_MUTATION,
   DEACTIVATE_USER_MUTATION,
   UPDATE_USER_ROLE_MUTATION,
   USERS_QUERY
-} from "../services/queries";
+} from "../graphql/queries";
 
 const loading = ref(true);
 const error = ref("");
-const actionMessage = ref("");
 const users = ref<AppUser[]>([]);
 const authStore = useAuthStore();
 const pendingRoles = reactive<Record<string, UserRole>>({});
@@ -44,6 +52,21 @@ const createForm = reactive<{
   password: "",
   role: "ANALYST"
 });
+
+const activeUsersCount = computed(() => users.value.filter((user) => user.isActive).length);
+const createErrors = computed(() => ({
+  fullName:
+    createForm.fullName.trim().length >= 3 ? "" : "Укажите имя не короче трёх символов.",
+  email:
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(createForm.email.trim())
+      ? ""
+      : "Введите корректную электронную почту.",
+  password:
+    createForm.password.length >= 4 ? "" : "Пароль должен содержать не менее четырёх символов."
+}));
+const createFormValid = computed(
+  () => !createErrors.value.fullName && !createErrors.value.email && !createErrors.value.password
+);
 
 async function loadUsers() {
   loading.value = true;
@@ -66,9 +89,20 @@ async function loadUsers() {
   }
 }
 
+function resetCreateForm() {
+  createForm.email = "";
+  createForm.fullName = "";
+  createForm.password = "";
+  createForm.role = "ANALYST";
+}
+
 async function createUser() {
-  actionMessage.value = "";
   error.value = "";
+  if (!createFormValid.value) {
+    toast.warning("Проверьте форму", "Заполните обязательные поля корректно.");
+    return;
+  }
+
   createLoading.value = true;
 
   try {
@@ -84,22 +118,19 @@ async function createUser() {
       }
     });
 
-    createForm.email = "";
-    createForm.fullName = "";
-    createForm.password = "";
-    createForm.role = "ANALYST";
-    actionMessage.value = "Пользователь создан";
+    resetCreateForm();
     createDialogOpen.value = false;
+    toast.success("Пользователь создан", "Новая учётная запись добавлена в систему.");
     await loadUsers();
   } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : "Не удалось создать пользователя";
+    const message = caught instanceof Error ? caught.message : "Не удалось создать пользователя";
+    toast.error("Ошибка создания", message);
   } finally {
     createLoading.value = false;
   }
 }
 
 async function updateRole(user: AppUser) {
-  actionMessage.value = "";
   error.value = "";
   updateLoadingId.value = user.id;
 
@@ -114,17 +145,17 @@ async function updateRole(user: AppUser) {
       }
     });
 
-    actionMessage.value = `Роль обновлена для ${user.email}`;
+    toast.success("Роль обновлена", `Для ${user.email} сохранена новая роль.`);
     await loadUsers();
   } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : "Не удалось обновить роль";
+    const message = caught instanceof Error ? caught.message : "Не удалось обновить роль";
+    toast.error("Ошибка обновления роли", message);
   } finally {
     updateLoadingId.value = "";
   }
 }
 
 async function deactivate(user: AppUser) {
-  actionMessage.value = "";
   error.value = "";
   deactivateLoadingId.value = user.id;
 
@@ -134,78 +165,106 @@ async function deactivate(user: AppUser) {
       variables: { userId: user.id }
     });
 
-    actionMessage.value = `Пользователь ${user.email} деактивирован`;
     userToDeactivate.value = null;
+    toast.success("Пользователь деактивирован", `${user.email} больше не имеет доступа.`);
     await loadUsers();
   } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : "Не удалось деактивировать пользователя";
+    const message =
+      caught instanceof Error ? caught.message : "Не удалось деактивировать пользователя";
+    toast.error("Ошибка деактивации", message);
   } finally {
     deactivateLoadingId.value = "";
   }
 }
-
-onMounted(() => {
-  void loadUsers();
-});
 
 const roleOptions = [
   { label: "Пользователь", value: "USER" },
   { label: "Аналитик", value: "ANALYST" },
   { label: "Администратор", value: "ADMIN" }
 ];
+
+onMounted(() => {
+  void loadUsers();
+});
 </script>
 
 <template>
   <PageHeader
     title="Пользователи"
-    description="Управление ролями, доступом и жизненным циклом учетных записей."
+    description="Управление ролями, доступом и жизненным циклом учётных записей."
   >
     <template #actions>
-      <UiButton @click="createDialogOpen = true">Добавить пользователя</UiButton>
+      <Button @click="createDialogOpen = true">Добавить пользователя</Button>
     </template>
   </PageHeader>
 
-  <UiCard v-if="actionMessage">
-    <div class="success-text">{{ actionMessage }}</div>
-  </UiCard>
+  <Card class="users-toolbar-card">
+    <div class="panel-title">
+      <div>
+        <h2>Контур доступа</h2>
+        <p class="data-note">
+          Активных пользователей: {{ activeUsersCount }} из {{ users.length }}. Роль можно менять без
+          перехода на отдельную страницу.
+        </p>
+      </div>
+      <Badge variant="secondary">Текущий пользователь: {{ authStore.user?.email }}</Badge>
+    </div>
+  </Card>
 
-  <UiCard v-if="loading">
-    <UiSkeleton :lines="8" />
-  </UiCard>
-  <UiCard v-else-if="error">
-    <UiErrorState :description="error" action-label="Повторить" @action="loadUsers" />
-  </UiCard>
-  <UiCard v-else>
-    <UiEmptyState
+  <Card v-if="loading" class="loading-card">
+    <Skeleton :lines="8" />
+  </Card>
+
+  <Card v-else-if="error" class="error-card">
+    <ErrorState :description="error" action-label="Повторить" @action="loadUsers" />
+  </Card>
+
+  <Card v-else class="table-card">
+    <div class="table-card__header">
+      <div>
+        <h2>Список пользователей</h2>
+        <p class="data-note">
+          Учётные записи, роли и доступ можно обслуживать прямо в таблице без отдельного служебного экрана.
+        </p>
+      </div>
+    </div>
+
+    <EmptyState
       v-if="users.length === 0"
       title="Пользователи не найдены"
-      description="Создайте первую учетную запись администратора или аналитика."
+      description="Создайте первую учётную запись администратора или аналитика."
     />
-    <UiTable v-else>
-      <thead>
-        <tr>
-          <th>Пользователь</th>
-          <th>Email</th>
-          <th>Роль</th>
-          <th>Статус</th>
-          <th>Последний вход</th>
-          <th>Действия</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="user in users" :key="user.id">
-          <td>
-            <strong>{{ user.fullName }}</strong>
-          </td>
-          <td>{{ user.email }}</td>
-          <td>
-            <div class="inline-actions">
-              <UiSelect
+
+    <Table v-else>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Пользователь</TableHead>
+          <TableHead>Роль</TableHead>
+          <TableHead>Статус</TableHead>
+          <TableHead>Последний вход</TableHead>
+          <TableHead>Действия</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow v-for="user in users" :key="user.id">
+          <TableCell>
+            <div class="users-table__person">
+              <Avatar :fallback="user.fullName" size="sm" />
+              <div class="users-table__person-copy">
+                <strong>{{ user.fullName }}</strong>
+                <p>{{ user.email }}</p>
+              </div>
+            </div>
+          </TableCell>
+
+          <TableCell>
+            <div class="users-actions">
+              <Select
                 v-model="pendingRoles[user.id]"
                 :options="roleOptions"
                 aria-label="Роль пользователя"
               />
-              <UiButton
+              <Button
                 type="button"
                 variant="secondary"
                 size="sm"
@@ -213,21 +272,27 @@ const roleOptions = [
                 @click="updateRole(user)"
               >
                 {{ updateLoadingId === user.id ? "Сохранение..." : "Сохранить" }}
-              </UiButton>
+              </Button>
             </div>
-          </td>
-          <td>
-            <UiBadge :tone="user.isActive ? 'success' : 'danger'">
-              {{ user.isActive ? "Активен" : "Отключен" }}
-            </UiBadge>
-          </td>
-          <td>{{ formatDateTime(user.lastLoginAt) }}</td>
-          <td>
-            <div class="inline-actions">
-              <UiBadge :tone="badgeTone(user.role)">
+          </TableCell>
+
+          <TableCell>
+            <div class="users-table__meta">
+              <Badge :variant="user.isActive ? 'success' : 'destructive'">
+                {{ user.isActive ? "Активен" : "Отключён" }}
+              </Badge>
+              <span class="muted-text">{{ formatEnumLabel(user.role) }}</span>
+            </div>
+          </TableCell>
+
+          <TableCell>{{ formatDateTime(user.lastLoginAt) }}</TableCell>
+
+          <TableCell>
+            <div class="users-actions">
+              <Badge :variant="badgeVariant(user.role)">
                 {{ formatEnumLabel(user.role) }}
-              </UiBadge>
-              <UiButton
+              </Badge>
+              <Button
                 type="button"
                 variant="destructive"
                 size="sm"
@@ -235,62 +300,79 @@ const roleOptions = [
                 @click="userToDeactivate = user"
               >
                 Деактивировать
-              </UiButton>
+              </Button>
             </div>
-          </td>
-        </tr>
-      </tbody>
-    </UiTable>
-  </UiCard>
+          </TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  </Card>
 
-  <UiDialog
+  <Dialog
     :open="createDialogOpen"
     title="Новый пользователь"
-    description="Создайте учетную запись и сразу назначьте роль в системе."
+    description="Создайте учётную запись и сразу назначьте роль в системе."
     @close="createDialogOpen = false"
   >
     <form class="form-grid" @submit.prevent="createUser">
-      <UiInput v-model="createForm.fullName" label="ФИО" required />
-      <UiInput v-model="createForm.email" label="Email" type="email" required />
-      <UiInput v-model="createForm.password" label="Пароль" type="password" required />
-      <UiSelect v-model="createForm.role" label="Роль" :options="roleOptions" />
+      <label class="field">
+        <Label for="user-full-name">ФИО</Label>
+        <Input
+          id="user-full-name"
+          v-model="createForm.fullName"
+          :invalid="Boolean(createErrors.fullName)"
+          required
+        />
+        <span v-if="createErrors.fullName" class="field__error">{{ createErrors.fullName }}</span>
+      </label>
+
+      <label class="field">
+        <Label for="user-email">Электронная почта</Label>
+        <Input
+          id="user-email"
+          v-model="createForm.email"
+          type="email"
+          :invalid="Boolean(createErrors.email)"
+          required
+        />
+        <span v-if="createErrors.email" class="field__error">{{ createErrors.email }}</span>
+      </label>
+
+      <label class="field">
+        <Label for="user-password">Пароль</Label>
+        <Input
+          id="user-password"
+          v-model="createForm.password"
+          type="password"
+          :invalid="Boolean(createErrors.password)"
+          required
+        />
+        <span v-if="createErrors.password" class="field__error">{{ createErrors.password }}</span>
+      </label>
+
+      <label class="field">
+        <Label for="user-role">Роль</Label>
+        <Select id="user-role" v-model="createForm.role" :options="roleOptions" />
+      </label>
+
       <div class="inline-actions">
-        <UiButton type="submit" :disabled="createLoading">
+        <Button type="submit" :disabled="createLoading || !createFormValid">
           {{ createLoading ? "Создание..." : "Создать" }}
-        </UiButton>
-        <UiButton type="button" variant="ghost" @click="createDialogOpen = false">
-          Отмена
-        </UiButton>
+        </Button>
+        <Button type="button" variant="ghost" @click="createDialogOpen = false">Отмена</Button>
       </div>
     </form>
-  </UiDialog>
+  </Dialog>
 
-  <UiDialog
+  <AlertDialog
     :open="Boolean(userToDeactivate)"
-    title="Подтвердите действие"
-    :description="`Пользователь ${userToDeactivate?.email ?? ''} потеряет доступ к платформе.`"
-    @close="userToDeactivate = null"
-  >
-    <div class="form-grid">
-      <p class="muted-text">
-        Деактивация не удаляет пользователя из системы, но отключает доступ к защищенным разделам.
-      </p>
-      <div class="inline-actions">
-        <UiButton
-          variant="destructive"
-          :disabled="!userToDeactivate || deactivateLoadingId === userToDeactivate.id"
-          @click="userToDeactivate && deactivate(userToDeactivate)"
-        >
-          {{
-            userToDeactivate && deactivateLoadingId === userToDeactivate.id
-              ? "Выполняется..."
-              : "Деактивировать"
-          }}
-        </UiButton>
-        <UiButton type="button" variant="ghost" @click="userToDeactivate = null">
-          Отмена
-        </UiButton>
-      </div>
-    </div>
-  </UiDialog>
+    title="Деактивировать пользователя"
+    :description="`Пользователь ${userToDeactivate?.email ?? ''} потеряет доступ к защищённым разделам.`"
+    confirm-label="Деактивировать"
+    cancel-label="Отмена"
+    :loading="Boolean(userToDeactivate && deactivateLoadingId === userToDeactivate.id)"
+    @update:open="(open) => { if (!open) userToDeactivate = null; }"
+    @cancel="userToDeactivate = null"
+    @confirm="userToDeactivate && deactivate(userToDeactivate)"
+  />
 </template>

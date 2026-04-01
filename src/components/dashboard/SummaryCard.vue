@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import Card from "../ui/card/Card.vue";
+
 defineProps<{
   label: string;
   value: string;
@@ -7,9 +9,9 @@ defineProps<{
 </script>
 
 <template>
-  <article class="summary-card">
+  <Card class="summary-card">
     <span class="summary-card__label">{{ label }}</span>
     <strong>{{ value }}</strong>
     <p>{{ hint }}</p>
-  </article>
+  </Card>
 </template>
