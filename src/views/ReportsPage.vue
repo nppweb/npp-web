@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { formatDateTime, formatEnumLabel, statusTone } from "../lib/format";
+import PageHeader from "../components/layout/PageHeader.vue";
+import SummaryCard from "../components/dashboard/SummaryCard.vue";
+import UiBadge from "../components/ui/UiBadge.vue";
+import UiButton from "../components/ui/UiButton.vue";
+import UiCard from "../components/ui/UiCard.vue";
+import UiEmptyState from "../components/ui/UiEmptyState.vue";
+import UiErrorState from "../components/ui/UiErrorState.vue";
+import UiSkeleton from "../components/ui/UiSkeleton.vue";
+import UiTable from "../components/ui/UiTable.vue";
+import { badgeTone, formatDateTime, formatEnumLabel } from "../lib/format";
 import { apolloClient } from "../services/apollo";
 import type { Report } from "../services/graphql-types";
 import { REPORTS_QUERY } from "../services/queries";
@@ -9,14 +18,30 @@ const loading = ref(true);
 const error = ref("");
 const reports = ref<Report[]>([]);
 
-const summary = computed(() => ({
-  total: reports.value.length,
-  ready: reports.value.filter((item) => item.status === "READY").length,
-  pending: reports.value.filter((item) => item.status === "PENDING").length,
-  failed: reports.value.filter((item) => item.status === "FAILED").length
-}));
+const summary = computed(() => [
+  {
+    label: "Всего отчетов",
+    value: String(reports.value.length),
+    hint: "Все аналитические отчеты в системе"
+  },
+  {
+    label: "Готовы",
+    value: String(reports.value.filter((item) => item.status === "READY").length),
+    hint: "Можно использовать без дополнительной обработки"
+  },
+  {
+    label: "В очереди",
+    value: String(reports.value.filter((item) => item.status === "PENDING").length),
+    hint: "Ожидают генерации или обновления"
+  },
+  {
+    label: "С ошибкой",
+    value: String(reports.value.filter((item) => item.status === "FAILED").length),
+    hint: "Требуют внимания команды"
+  }
+]);
 
-onMounted(async () => {
+async function loadReports() {
   try {
     const { data } = await apolloClient.query<{ reports: Report[] }>({
       query: REPORTS_QUERY,
@@ -25,57 +50,74 @@ onMounted(async () => {
 
     reports.value = data.reports;
   } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : "Unable to load reports";
+    error.value = caught instanceof Error ? caught.message : "Не удалось загрузить отчеты";
   } finally {
     loading.value = false;
   }
+}
+
+onMounted(() => {
+  void loadReports();
 });
 </script>
 
 <template>
-  <section class="page-header">
-    <div>
-      <p class="eyebrow">Analytics</p>
-      <h2>Reports</h2>
-    </div>
-    <p class="caption">Сводка статусов отчётов и доступных аналитических сущностей.</p>
-  </section>
-  <div v-if="loading" class="card">Loading reports...</div>
-  <div v-else-if="error" class="card error-text">{{ error }}</div>
+  <PageHeader
+    title="Отчеты"
+    description="Сводка по состоянию аналитических отчетов платформы."
+  >
+    <template #actions>
+      <UiButton variant="secondary" @click="loadReports">Обновить</UiButton>
+    </template>
+  </PageHeader>
+
+  <div v-if="loading" class="stats-grid">
+    <UiCard v-for="item in 4" :key="item"><UiSkeleton :lines="3" /></UiCard>
+  </div>
+  <UiCard v-else-if="error">
+    <UiErrorState :description="error" action-label="Повторить" @action="loadReports" />
+  </UiCard>
   <template v-else>
     <div class="stats-grid">
-      <article class="stat-card">
-        <span>Total reports</span>
-        <strong>{{ summary.total }}</strong>
-      </article>
-      <article class="stat-card">
-        <span>Ready</span>
-        <strong>{{ summary.ready }}</strong>
-      </article>
-      <article class="stat-card">
-        <span>Pending</span>
-        <strong>{{ summary.pending }}</strong>
-      </article>
-      <article class="stat-card">
-        <span>Failed</span>
-        <strong>{{ summary.failed }}</strong>
-      </article>
+      <SummaryCard
+        v-for="card in summary"
+        :key="card.label"
+        :label="card.label"
+        :value="card.value"
+        :hint="card.hint"
+      />
     </div>
 
-    <section class="card cards-grid">
-      <article v-for="report in reports" :key="report.id" class="source-card">
-        <div class="section-title compact">
-          <div>
-            <p class="eyebrow">Report</p>
-            <h3>{{ report.name }}</h3>
-          </div>
-          <span class="status-chip" :class="statusTone(report.status)">
-            {{ formatEnumLabel(report.status) }}
-          </span>
-        </div>
-        <p>{{ report.description || "No description provided." }}</p>
-        <small>Updated {{ formatDateTime(report.updatedAt) }}</small>
-      </article>
-    </section>
+    <UiCard>
+      <UiEmptyState
+        v-if="reports.length === 0"
+        title="Отчеты отсутствуют"
+        description="Когда backend начнет формировать отчеты, они появятся в этом разделе."
+      />
+      <UiTable v-else>
+        <thead>
+          <tr>
+            <th>Отчет</th>
+            <th>Статус</th>
+            <th>Описание</th>
+            <th>Обновлен</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="report in reports" :key="report.id">
+            <td>
+              <strong>{{ report.name }}</strong>
+            </td>
+            <td>
+              <UiBadge :tone="badgeTone(report.status)">
+                {{ formatEnumLabel(report.status) }}
+              </UiBadge>
+            </td>
+            <td>{{ report.description || "Описание не задано" }}</td>
+            <td>{{ formatDateTime(report.updatedAt) }}</td>
+          </tr>
+        </tbody>
+      </UiTable>
+    </UiCard>
   </template>
 </template>

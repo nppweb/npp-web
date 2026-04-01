@@ -1,10 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import PageHeader from "../components/layout/PageHeader.vue";
+import SummaryCard from "../components/dashboard/SummaryCard.vue";
+import UiBadge from "../components/ui/UiBadge.vue";
+import UiButton from "../components/ui/UiButton.vue";
+import UiCard from "../components/ui/UiCard.vue";
+import UiEmptyState from "../components/ui/UiEmptyState.vue";
+import UiErrorState from "../components/ui/UiErrorState.vue";
+import UiSkeleton from "../components/ui/UiSkeleton.vue";
+import UiTable from "../components/ui/UiTable.vue";
 import {
+  badgeTone,
   formatDateTime,
   formatEnumLabel,
-  formatNumber,
-  statusTone
+  formatNumber
 } from "../lib/format";
 import { apolloClient } from "../services/apollo";
 import type { Source, SourceRun } from "../services/graphql-types";
@@ -22,7 +31,30 @@ const sourceRows = computed(() =>
   }))
 );
 
-onMounted(async () => {
+const summaryCards = computed(() => {
+  const activeCount = items.value.filter((item) => item.isActive).length;
+  const withFailures = sourceRows.value.filter((item) => item.lastRun?.status === "FAILED").length;
+
+  return [
+    {
+      label: "Всего источников",
+      value: formatNumber(items.value.length),
+      hint: "Реестр подключенных источников в платформе"
+    },
+    {
+      label: "Активные",
+      value: formatNumber(activeCount),
+      hint: "Источники, доступные для регулярного сбора"
+    },
+    {
+      label: "С ошибками",
+      value: formatNumber(withFailures),
+      hint: "Источники с последним запуском в статусе ошибки"
+    }
+  ];
+});
+
+async function loadSources() {
   try {
     const [sourcesResult, runsResult] = await Promise.all([
       apolloClient.query<{ sources: Source[] }>({
@@ -39,42 +71,62 @@ onMounted(async () => {
     items.value = sourcesResult.data.sources;
     runs.value = runsResult.data.sourceRuns;
   } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : "Unable to load sources";
+    error.value = caught instanceof Error ? caught.message : "Не удалось загрузить источники";
   } finally {
     loading.value = false;
   }
+}
+
+onMounted(() => {
+  void loadSources();
 });
 </script>
 
 <template>
-  <section class="page-header">
-    <div>
-      <p class="eyebrow">Collection</p>
-      <h2>Sources</h2>
-    </div>
-    <p class="caption">Источники, их активность и последний observed run.</p>
-  </section>
-  <div v-if="loading" class="card">Loading sources...</div>
-  <div v-else-if="error" class="card error-text">{{ error }}</div>
+  <PageHeader
+    title="Источники"
+    description="Статус подключенных источников и их последних запусков."
+  >
+    <template #actions>
+      <UiButton variant="secondary" @click="loadSources">Обновить</UiButton>
+    </template>
+  </PageHeader>
+
+  <div v-if="loading" class="stats-grid">
+    <UiCard v-for="item in 3" :key="item"><UiSkeleton :lines="3" /></UiCard>
+  </div>
+  <UiCard v-else-if="error">
+    <UiErrorState :description="error" action-label="Повторить" @action="loadSources" />
+  </UiCard>
   <template v-else>
+    <div class="stats-grid">
+      <SummaryCard
+        v-for="card in summaryCards"
+        :key="card.label"
+        :label="card.label"
+        :value="card.value"
+        :hint="card.hint"
+      />
+    </div>
+
     <section class="cards-grid">
       <article v-for="item in sourceRows" :key="item.id" class="source-card">
-        <div class="section-title compact">
+        <div class="panel-title">
           <div>
-            <p class="eyebrow">{{ formatEnumLabel(item.kind) }}</p>
+            <p class="section-hint">{{ formatEnumLabel(item.kind) }}</p>
             <h3>{{ item.name }}</h3>
           </div>
-          <span class="status-chip" :class="item.isActive ? 'is-success' : 'is-danger'">
-            {{ item.isActive ? "Active" : "Inactive" }}
-          </span>
+          <UiBadge :tone="item.isActive ? 'success' : 'danger'">
+            {{ item.isActive ? "Активен" : "Неактивен" }}
+          </UiBadge>
         </div>
-        <p>{{ item.description || "No description provided." }}</p>
+        <p>{{ item.description || "Описание для источника пока не заполнено." }}</p>
         <div class="table-subtitle">{{ item.code }}</div>
         <div v-if="item.lastRun" class="source-meta">
-          <span class="status-chip" :class="statusTone(item.lastRun.status)">
+          <UiBadge :tone="badgeTone(item.lastRun.status)">
             {{ formatEnumLabel(item.lastRun.status) }}
-          </span>
-          <small>Started {{ formatDateTime(item.lastRun.startedAt) }}</small>
+          </UiBadge>
+          <span class="muted-text">Запуск: {{ formatDateTime(item.lastRun.startedAt) }}</span>
         </div>
         <a
           v-if="item.baseUrl"
@@ -83,40 +135,51 @@ onMounted(async () => {
           target="_blank"
           rel="noreferrer"
         >
-          Open source endpoint
+          Открыть адрес источника
         </a>
       </article>
     </section>
 
-    <section class="card">
-      <div class="section-title">
-        <h3>Latest runs by source</h3>
+    <UiCard>
+      <div class="panel-title">
+        <div>
+          <h2>Последние запуски по источникам</h2>
+          <p>Быстрый срез по публикации и ошибкам для каждого источника.</p>
+        </div>
       </div>
-      <table class="table">
+      <UiEmptyState
+        v-if="sourceRows.length === 0"
+        title="Источники не найдены"
+        description="После подключения источников здесь появится сводка по их запуску."
+      />
+      <UiTable v-else>
         <thead>
           <tr>
-            <th>Source</th>
-            <th>Last run</th>
-            <th>Published</th>
-            <th>Failed</th>
-            <th>Updated</th>
+            <th>Источник</th>
+            <th>Последний запуск</th>
+            <th>Опубликовано</th>
+            <th>Ошибки</th>
+            <th>Обновлено</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="item in sourceRows" :key="item.id">
             <td>{{ item.name }}</td>
             <td>
-              <span v-if="item.lastRun" class="status-chip" :class="statusTone(item.lastRun.status)">
+              <UiBadge
+                v-if="item.lastRun"
+                :tone="badgeTone(item.lastRun.status)"
+              >
                 {{ formatEnumLabel(item.lastRun.status) }}
-              </span>
-              <span v-else class="caption">No runs yet</span>
+              </UiBadge>
+              <span v-else class="muted-text">Запусков пока не было</span>
             </td>
             <td>{{ formatNumber(item.lastRun?.itemsPublished) }}</td>
             <td>{{ formatNumber(item.lastRun?.itemsFailed) }}</td>
-            <td>{{ item.lastRun ? formatDateTime(item.lastRun.startedAt) : "n/a" }}</td>
+            <td>{{ item.lastRun ? formatDateTime(item.lastRun.startedAt) : "Нет данных" }}</td>
           </tr>
         </tbody>
-      </table>
-    </section>
+      </UiTable>
+    </UiCard>
   </template>
 </template>

@@ -16,9 +16,28 @@ const wholeNumberFormatter = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 0
 });
 
+const enumLabels: Record<string, string> = {
+  USER: "Пользователь",
+  ANALYST: "Аналитик",
+  ADMIN: "Администратор",
+  DRAFT: "Черновик",
+  ACTIVE: "Активна",
+  CLOSED: "Завершена",
+  ARCHIVED: "В архиве",
+  DEMO: "Демо",
+  FIND_TENDER: "FindTender",
+  PENDING: "В очереди",
+  RUNNING: "Выполняется",
+  SUCCESS: "Успешно",
+  PARTIAL: "Частично",
+  FAILED: "Ошибка",
+  READY: "Готов",
+  INACTIVE: "Неактивен"
+};
+
 export function formatDateTime(value?: string | null) {
   if (!value) {
-    return "n/a";
+    return "Нет данных";
   }
 
   return dateTimeFormatter.format(new Date(value));
@@ -26,7 +45,7 @@ export function formatDateTime(value?: string | null) {
 
 export function formatDate(value?: string | null) {
   if (!value) {
-    return "n/a";
+    return "Нет данных";
   }
 
   return dateFormatter.format(new Date(value));
@@ -34,7 +53,7 @@ export function formatDate(value?: string | null) {
 
 export function formatCurrency(amount?: number | null, currency?: string | null) {
   if (amount === null || amount === undefined) {
-    return "n/a";
+    return "Нет данных";
   }
 
   const normalizedCurrency = currency?.trim();
@@ -67,34 +86,46 @@ export function formatCompactNumber(value: number) {
 
 export function formatDuration(startedAt?: string | null, finishedAt?: string | null) {
   if (!startedAt || !finishedAt) {
-    return "n/a";
+    return "Нет данных";
   }
 
   const durationMs = new Date(finishedAt).getTime() - new Date(startedAt).getTime();
   if (!Number.isFinite(durationMs) || durationMs <= 0) {
-    return "n/a";
+    return "Нет данных";
   }
 
   const minutes = Math.round(durationMs / 60000);
   if (minutes < 1) {
-    return "< 1 min";
+    return "< 1 мин";
   }
 
   if (minutes < 60) {
-    return `${minutes} min`;
+    return `${minutes} мин`;
   }
 
   const hours = Math.floor(minutes / 60);
   const restMinutes = minutes % 60;
-  return restMinutes ? `${hours} h ${restMinutes} min` : `${hours} h`;
+  return restMinutes ? `${hours} ч ${restMinutes} мин` : `${hours} ч`;
 }
 
 export function formatEnumLabel(value: string) {
+  if (enumLabels[value]) {
+    return enumLabels[value];
+  }
+
   return value
     .toLowerCase()
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+export function formatRoleLabel(value?: string | null) {
+  if (!value) {
+    return "Роль не задана";
+  }
+
+  return formatEnumLabel(value);
 }
 
 export function statusTone(value?: string | null) {
@@ -113,4 +144,8 @@ export function statusTone(value?: string | null) {
   }
 
   return "is-neutral";
+}
+
+export function badgeTone(value?: string | null): "neutral" | "success" | "warning" | "danger" {
+  return statusTone(value).replace("is-", "") as "neutral" | "success" | "warning" | "danger";
 }

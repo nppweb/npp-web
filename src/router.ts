@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from "vue-router";
-import HomePage from "./pages/HomePage.vue";
 import { useAuthStore } from "./stores/auth";
 import { pinia } from "./stores";
 import DashboardPage from "./views/DashboardPage.vue";
@@ -14,57 +13,92 @@ import UsersPage from "./views/UsersPage.vue";
 const routes = [
   {
     path: "/",
-    name: "home",
-    component: HomePage,
-    meta: { public: true }
+    redirect: "/dashboard"
   },
   {
     path: "/login",
     name: "login",
     component: LoginPage,
-    meta: { public: true }
+    meta: {
+      public: true,
+      title: "Вход",
+      description: "Авторизация в платформе мониторинга закупок"
+    }
   },
   {
     path: "/dashboard",
     name: "dashboard",
     component: DashboardPage,
-    meta: { requiresAuth: true }
+    meta: {
+      requiresAuth: true,
+      title: "Дашборд",
+      description: "Оперативная сводка по закупкам, источникам и запускам"
+    }
   },
   {
     path: "/procurements",
     name: "procurements",
     component: ProcurementsPage,
-    meta: { requiresAuth: true }
+    meta: {
+      requiresAuth: true,
+      title: "Закупки",
+      description: "Единый список закупок с фильтрами и переходом в карточку"
+    }
   },
   {
     path: "/procurements/:id",
     name: "procurement-detail",
     component: ProcurementDetailPage,
-    meta: { requiresAuth: true }
+    meta: {
+      requiresAuth: true,
+      title: "Карточка закупки",
+      description: "Детальная информация о выбранной закупке"
+    }
   },
   {
     path: "/sources",
     name: "sources",
     component: SourcesPage,
-    meta: { requiresAuth: true }
+    meta: {
+      requiresAuth: true,
+      title: "Источники",
+      description: "Реестр подключенных источников и состояние их публикаций"
+    }
   },
   {
     path: "/jobs",
     name: "jobs",
     component: JobsPage,
-    meta: { requiresAuth: true }
+    meta: {
+      requiresAuth: true,
+      title: "Запуски",
+      description: "Журнал запусков сбора и публикации данных"
+    }
   },
   {
     path: "/reports",
     name: "reports",
     component: ReportsPage,
-    meta: { requiresAuth: true }
+    meta: {
+      requiresAuth: true,
+      title: "Отчеты",
+      description: "Состояние аналитических отчетов и их готовность"
+    }
   },
   {
     path: "/users",
     name: "users",
     component: UsersPage,
-    meta: { requiresAuth: true, roles: ["ADMIN"] }
+    meta: {
+      requiresAuth: true,
+      roles: ["ADMIN"],
+      title: "Пользователи",
+      description: "Управление доступом и ролями пользователей платформы"
+    }
+  },
+  {
+    path: "/:pathMatch(.*)*",
+    redirect: "/dashboard"
   }
 ];
 

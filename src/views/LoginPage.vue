@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { RouterLink, useRoute, useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
+import UiButton from "../components/ui/UiButton.vue";
+import UiCard from "../components/ui/UiCard.vue";
+import UiErrorState from "../components/ui/UiErrorState.vue";
+import UiInput from "../components/ui/UiInput.vue";
 import { useAuthStore } from "../stores/auth";
 
 const email = ref("");
@@ -30,49 +34,56 @@ async function submit() {
         : "/dashboard";
     await router.push(redirect);
   } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : "Unable to authenticate";
+    error.value = caught instanceof Error ? caught.message : "Не удалось выполнить вход";
   }
 }
 </script>
 
 <template>
   <div class="login-page">
-    <div class="login-panel">
-      <p class="eyebrow">AIMSORA</p>
+    <UiCard class="login-panel">
+      <div class="login-panel__brand">
+        <span>AIMSORA</span>
+        <strong>Платформа мониторинга закупок</strong>
+      </div>
       <h1>Вход в платформу</h1>
-      <p class="lead">
-        Используйте реальную backend-аутентификацию, чтобы перейти в control room,
-        проверить закупки, статусы источников и административные разделы.
+      <p class="login-panel__lead">
+        Войдите под своей учетной записью, чтобы открыть дашборд, закупки, источники,
+        запуски и административные разделы.
       </p>
 
-      <div v-if="isDemoMode" class="demo-hint">
+      <div v-if="isDemoMode" class="login-panel__dev-hint">
         <div>
-          <strong>Demo credentials</strong>
+          <strong>Демо-учетные данные для локальной среды</strong>
           <p>admin@admin.ru / admin</p>
         </div>
-        <button type="button" class="secondary-button" @click="fillDemoCredentials">
+        <UiButton type="button" variant="secondary" size="sm" @click="fillDemoCredentials">
           Подставить
-        </button>
+        </UiButton>
       </div>
 
-      <form class="login-form" @submit.prevent="submit">
-        <label>
-          Email
-          <input v-model="email" type="email" autocomplete="username" />
-        </label>
-        <label>
-          Password
-          <input v-model="password" type="password" autocomplete="current-password" />
-        </label>
-        <p v-if="error" class="error-text">{{ error }}</p>
-        <button class="primary-button" :disabled="authStore.loading">
-          {{ authStore.loading ? "Signing in..." : "Sign in" }}
-        </button>
+      <form class="form-grid" @submit.prevent="submit">
+        <UiInput
+          v-model="email"
+          label="Email"
+          type="email"
+          autocomplete="username"
+          placeholder="name@company.ru"
+          required
+        />
+        <UiInput
+          v-model="password"
+          label="Пароль"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Введите пароль"
+          required
+        />
+        <UiErrorState v-if="error" title="Ошибка входа" :description="error" />
+        <UiButton type="submit" block :disabled="authStore.loading">
+          {{ authStore.loading ? "Выполняется вход..." : "Войти" }}
+        </UiButton>
       </form>
-
-      <p class="login-footer">
-        <RouterLink to="/">Вернуться на главную</RouterLink>
-      </p>
-    </div>
+    </UiCard>
   </div>
 </template>

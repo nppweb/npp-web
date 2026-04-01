@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { RouterLink, useRoute } from "vue-router";
+import PageHeader from "../components/layout/PageHeader.vue";
+import UiBadge from "../components/ui/UiBadge.vue";
+import UiCard from "../components/ui/UiCard.vue";
+import UiErrorState from "../components/ui/UiErrorState.vue";
+import UiSkeleton from "../components/ui/UiSkeleton.vue";
 import {
+  badgeTone,
   formatCurrency,
   formatDateTime,
-  formatEnumLabel,
-  statusTone
+  formatEnumLabel
 } from "../lib/format";
 import { apolloClient } from "../services/apollo";
 import type { Procurement } from "../services/graphql-types";
@@ -16,7 +21,7 @@ const loading = ref(true);
 const error = ref("");
 const item = ref<Procurement | null>(null);
 
-onMounted(async () => {
+async function loadProcurement() {
   try {
     const { data } = await apolloClient.query<{ procurementItem: Procurement | null }>({
       query: PROCUREMENT_QUERY,
@@ -26,85 +31,110 @@ onMounted(async () => {
 
     item.value = data.procurementItem;
   } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : "Unable to load procurement";
+    error.value = caught instanceof Error ? caught.message : "Не удалось загрузить закупку";
   } finally {
     loading.value = false;
   }
+}
+
+onMounted(() => {
+  void loadProcurement();
 });
 </script>
 
 <template>
-  <section class="page-header">
-    <div>
-      <p class="eyebrow">Record</p>
-      <h2>Procurement Detail</h2>
-    </div>
-    <RouterLink class="text-link" to="/procurements">Back to list</RouterLink>
-  </section>
+  <PageHeader
+    title="Карточка закупки"
+    description="Основные поля, контрагенты, сроки и исходные данные записи."
+  >
+    <template #actions>
+      <RouterLink class="text-link" to="/procurements">Вернуться к списку</RouterLink>
+    </template>
+  </PageHeader>
 
-  <div v-if="loading" class="card">Loading record...</div>
-  <div v-else-if="error" class="card error-text">{{ error }}</div>
+  <UiCard v-if="loading">
+    <UiSkeleton :lines="8" />
+  </UiCard>
+  <UiCard v-else-if="error">
+    <UiErrorState :description="error" action-label="Повторить" @action="loadProcurement" />
+  </UiCard>
   <template v-else-if="item">
-    <section class="card detail-grid">
-      <div>
-        <span class="detail-label">Title</span>
-        <strong>{{ item.title }}</strong>
-      </div>
-      <div>
-        <span class="detail-label">Source</span>
-        <strong>{{ item.source }}</strong>
-      </div>
-      <div>
-        <span class="detail-label">External ID</span>
-        <strong>{{ item.externalId }}</strong>
-      </div>
-      <div>
-        <span class="detail-label">Customer</span>
-        <strong>{{ item.customer || "n/a" }}</strong>
-      </div>
-      <div>
-        <span class="detail-label">Supplier</span>
-        <strong>{{ item.supplier || "n/a" }}</strong>
-      </div>
-      <div>
-        <span class="detail-label">Amount</span>
-        <strong>{{ formatCurrency(item.amount, item.currency) }}</strong>
-      </div>
-      <div>
-        <span class="detail-label">Status</span>
-        <span class="status-chip" :class="statusTone(item.status)">
-          {{ formatEnumLabel(item.status) }}
-        </span>
-      </div>
-      <div>
-        <span class="detail-label">Published</span>
-        <strong>{{ formatDateTime(item.publishedAt) }}</strong>
-      </div>
-      <div>
-        <span class="detail-label">Deadline</span>
-        <strong>{{ formatDateTime(item.deadlineAt) }}</strong>
-      </div>
-      <div>
-        <span class="detail-label">Source URL</span>
-        <a
-          v-if="item.sourceUrl"
-          class="text-link"
-          :href="item.sourceUrl"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Open original
-        </a>
-        <strong v-else>n/a</strong>
-      </div>
-      <div class="detail-block">
-        <span class="detail-label">Description</span>
-        <p>{{ item.description || "No description" }}</p>
-      </div>
-      <div class="detail-block">
-        <span class="detail-label">Raw payload</span>
-        <pre>{{ JSON.stringify(item.rawPayload, null, 2) }}</pre>
-      </div>
-    </section>
+    <div class="detail-grid">
+      <UiCard class="detail-card">
+        <div class="panel-title">
+          <div>
+            <h2>{{ item.title }}</h2>
+            <p>{{ item.externalId }}</p>
+          </div>
+          <UiBadge :tone="badgeTone(item.status)">
+            {{ formatEnumLabel(item.status) }}
+          </UiBadge>
+        </div>
+        <div class="detail-card__row">
+          <strong>Описание</strong>
+          <span>{{ item.description || "Описание не заполнено" }}</span>
+        </div>
+      </UiCard>
+
+      <UiCard class="detail-card">
+        <h3>Основные данные</h3>
+        <div class="detail-card__row">
+          <strong>Источник</strong>
+          <span>{{ item.source }}</span>
+        </div>
+        <div class="detail-card__row">
+          <strong>Сумма</strong>
+          <span>{{ formatCurrency(item.amount, item.currency) }}</span>
+        </div>
+        <div class="detail-card__row">
+          <strong>Ссылка на источник</strong>
+          <a
+            v-if="item.sourceUrl"
+            class="text-link"
+            :href="item.sourceUrl"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Открыть первоисточник
+          </a>
+          <span v-else>Нет ссылки</span>
+        </div>
+      </UiCard>
+
+      <UiCard class="detail-card">
+        <h3>Контрагенты</h3>
+        <div class="detail-card__row">
+          <strong>Заказчик</strong>
+          <span>{{ item.customer || "Не указан" }}</span>
+        </div>
+        <div class="detail-card__row">
+          <strong>Поставщик</strong>
+          <span>{{ item.supplier || "Не указан" }}</span>
+        </div>
+      </UiCard>
+
+      <UiCard class="detail-card">
+        <h3>Даты</h3>
+        <div class="detail-card__row">
+          <strong>Опубликована</strong>
+          <span>{{ formatDateTime(item.publishedAt) }}</span>
+        </div>
+        <div class="detail-card__row">
+          <strong>Срок подачи</strong>
+          <span>{{ formatDateTime(item.deadlineAt) }}</span>
+        </div>
+        <div class="detail-card__row">
+          <strong>Обновлена</strong>
+          <span>{{ formatDateTime(item.updatedAt) }}</span>
+        </div>
+      </UiCard>
+
+      <UiCard class="detail-card">
+        <h3>Сырой payload</h3>
+        <div class="detail-card__row">
+          <pre>{{ JSON.stringify(item.rawPayload, null, 2) }}</pre>
+        </div>
+      </UiCard>
+    </div>
   </template>
 </template>

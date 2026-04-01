@@ -1,11 +1,35 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { RouterLink } from "vue-router";
+import SummaryCard from "../components/dashboard/SummaryCard.vue";
+import PageHeader from "../components/layout/PageHeader.vue";
 import BarChart from "../components/charts/BarChart.vue";
 import DonutChart from "../components/charts/DonutChart.vue";
 import LineChart from "../components/charts/LineChart.vue";
-import { formatCompactNumber, formatCurrency, formatDateTime, formatEnumLabel, formatNumber, statusTone } from "../lib/format";
+import UiBadge from "../components/ui/UiBadge.vue";
+import UiButton from "../components/ui/UiButton.vue";
+import UiCard from "../components/ui/UiCard.vue";
+import UiEmptyState from "../components/ui/UiEmptyState.vue";
+import UiErrorState from "../components/ui/UiErrorState.vue";
+import UiSkeleton from "../components/ui/UiSkeleton.vue";
+import UiTable from "../components/ui/UiTable.vue";
+import {
+  badgeTone,
+  formatCompactNumber,
+  formatCurrency,
+  formatDateTime,
+  formatEnumLabel,
+  formatNumber
+} from "../lib/format";
 import { apolloClient } from "../services/apollo";
-import type { DashboardSummary, Procurement, ProcurementPage, Report, Source, SourceRun } from "../services/graphql-types";
+import type {
+  DashboardSummary,
+  Procurement,
+  ProcurementPage,
+  Report,
+  Source,
+  SourceRun
+} from "../services/graphql-types";
 import {
   DASHBOARD_QUERY,
   PROCUREMENTS_QUERY,
@@ -68,27 +92,56 @@ async function loadDashboard() {
     runs.value = runsResult.data.sourceRuns;
     reports.value = reportsResult.data.reports;
   } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : "Unable to load dashboard";
+    error.value = caught instanceof Error ? caught.message : "Не удалось загрузить дашборд";
   } finally {
     loading.value = false;
   }
 }
 
+const summaryCards = computed(() => {
+  if (!summary.value) {
+    return [];
+  }
+
+  return [
+    {
+      label: "Закупки в базе",
+      value: formatCompactNumber(summary.value.totalProcurements),
+      hint: "Общий объем опубликованных записей"
+    },
+    {
+      label: "Активные источники",
+      value: formatNumber(summary.value.activeSources),
+      hint: "Источники, доступные для сбора"
+    },
+    {
+      label: "Запуски за 24 часа",
+      value: formatNumber(summary.value.runsLast24h),
+      hint: "Последняя суточная активность контура"
+    },
+    {
+      label: "Готовые отчеты",
+      value: formatNumber(readyReports.value),
+      hint: `Последняя публикация: ${formatDateTime(summary.value.lastPublishedAt)}`
+    }
+  ];
+});
+
 const sourceCoverage = computed(() =>
   (summary.value?.bySource ?? []).slice(0, 6).map((item) => ({
     label: item.source,
     value: item.count,
-    hint: `${formatCompactNumber(item.count)} procurement records`
+    hint: `${formatCompactNumber(item.count)} записей`
   }))
 );
 
 const runStatusSegments = computed(() => {
   const colors: Record<string, string> = {
-    SUCCESS: "#3ccf91",
-    RUNNING: "#f5a623",
-    PARTIAL: "#ffcf66",
-    FAILED: "#ff7f66",
-    PENDING: "#8aa0ae"
+    SUCCESS: "#15803d",
+    RUNNING: "#1d4ed8",
+    PARTIAL: "#b45309",
+    FAILED: "#b42318",
+    PENDING: "#64748b"
   };
 
   const counts = new Map<string, number>();
@@ -145,7 +198,9 @@ const recentAlerts = computed(() => {
     .map((run) => ({
       id: run.id,
       title: `${run.sourceCode} · ${formatEnumLabel(run.status)}`,
-      text: run.errorMessage || `Published ${formatNumber(run.itemsPublished)}, failed ${formatNumber(run.itemsFailed)}`
+      text:
+        run.errorMessage ||
+        `Опубликовано ${formatNumber(run.itemsPublished)}, ошибок ${formatNumber(run.itemsFailed)}`
     }));
 
   const reportAlerts = reports.value
@@ -154,7 +209,7 @@ const recentAlerts = computed(() => {
     .map((report) => ({
       id: report.id,
       title: `${report.name} · ${formatEnumLabel(report.status)}`,
-      text: `Updated ${formatDateTime(report.updatedAt)}`
+      text: `Обновлен ${formatDateTime(report.updatedAt)}`
     }));
 
   return [...runAlerts, ...reportAlerts];
@@ -188,130 +243,154 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="page-header">
-    <div>
-      <p class="eyebrow">Operations</p>
-      <h2>Dashboard</h2>
-      <p class="caption">Единая оперативная сводка по данным, источникам и job runs.</p>
-    </div>
-    <button class="secondary-button" @click="loadDashboard">Обновить</button>
-  </section>
+  <PageHeader
+    title="Дашборд"
+    description="Единая оперативная панель по закупкам, источникам, запускам и отчетам."
+  >
+    <template #actions>
+      <UiButton variant="secondary" @click="loadDashboard">Обновить</UiButton>
+    </template>
+  </PageHeader>
 
-  <div v-if="loading" class="card">Loading dashboard...</div>
-  <div v-else-if="error" class="card error-text">{{ error }}</div>
+  <div v-if="loading" class="section-grid">
+    <div class="stats-grid">
+      <UiCard v-for="item in 4" :key="item"><UiSkeleton :lines="3" /></UiCard>
+    </div>
+    <UiCard><UiSkeleton :lines="8" /></UiCard>
+  </div>
+  <UiCard v-else-if="error">
+    <UiErrorState :description="error" action-label="Повторить" @action="loadDashboard" />
+  </UiCard>
   <template v-else-if="summary">
-    <div class="stats-grid dashboard-stats">
-      <article class="stat-card">
-        <span>Total procurements</span>
-        <strong>{{ formatCompactNumber(summary.totalProcurements) }}</strong>
-        <small>Published records in platform storage</small>
-      </article>
-      <article class="stat-card">
-        <span>Active sources</span>
-        <strong>{{ formatNumber(summary.activeSources) }}</strong>
-        <small>Sources currently available for ingest</small>
-      </article>
-      <article class="stat-card">
-        <span>Runs in last 24h</span>
-        <strong>{{ formatNumber(summary.runsLast24h) }}</strong>
-        <small>Observed recent collector activity</small>
-      </article>
-      <article class="stat-card">
-        <span>Ready reports</span>
-        <strong>{{ formatNumber(readyReports) }}</strong>
-        <small>Last publication: {{ formatDateTime(summary.lastPublishedAt) }}</small>
-      </article>
+    <div class="stats-grid">
+      <SummaryCard
+        v-for="card in summaryCards"
+        :key="card.label"
+        :label="card.label"
+        :value="card.value"
+        :hint="card.hint"
+      />
     </div>
 
     <div class="dashboard-grid">
-      <section class="card dashboard-panel">
-        <div class="section-title">
-          <h3>Coverage by source</h3>
+      <UiCard>
+        <div class="panel-title">
+          <div>
+            <h2>Покрытие по источникам</h2>
+            <p>Какой объем закупок приходит из каждого канала.</p>
+          </div>
         </div>
         <BarChart :items="sourceCoverage" empty-label="По источникам пока нет данных." />
-      </section>
+      </UiCard>
 
-      <section class="card dashboard-panel">
-        <div class="section-title">
-          <h3>Run status mix</h3>
+      <UiCard>
+        <div class="panel-title">
+          <div>
+            <h2>Статусы запусков</h2>
+            <p>Распределение текущей выборки запусков по итоговому статусу.</p>
+          </div>
         </div>
-        <DonutChart :segments="runStatusSegments" empty-label="Source runs ещё не запускались." />
-      </section>
+        <DonutChart :segments="runStatusSegments" empty-label="Запуски источников пока отсутствуют." />
+      </UiCard>
 
-      <section class="card dashboard-panel dashboard-panel-wide">
-        <div class="section-title">
-          <h3>Recent procurement activity</h3>
+      <UiCard class="dashboard-panel-wide">
+        <div class="panel-title">
+          <div>
+            <h2>Динамика публикаций</h2>
+            <p>Закупки, опубликованные в системе за последние 7 дней.</p>
+          </div>
         </div>
-        <LineChart :points="procurementTrend" empty-label="Недостаточно публикаций для тренда." />
-      </section>
+        <LineChart :points="procurementTrend" empty-label="Недостаточно публикаций для построения тренда." />
+      </UiCard>
 
-      <section class="card dashboard-panel">
-        <div class="section-title">
-          <h3>Recent alerts</h3>
+      <UiCard>
+        <div class="panel-title">
+          <div>
+            <h2>Сигналы и риски</h2>
+            <p>События, которым стоит уделить внимание в первую очередь.</p>
+          </div>
         </div>
-        <div v-if="recentAlerts.length === 0" class="empty-state">
-          Активных alert-событий нет. Последние runs и reports выглядят стабильно.
-        </div>
+        <UiEmptyState
+          v-if="recentAlerts.length === 0"
+          title="Сигналы отсутствуют"
+          description="Последние запуски и отчеты выглядят стабильно."
+        />
         <div v-else class="alert-list">
           <article v-for="alert in recentAlerts" :key="alert.id" class="alert-card">
             <strong>{{ alert.title }}</strong>
             <p>{{ alert.text }}</p>
           </article>
         </div>
-      </section>
+      </UiCard>
     </div>
 
-    <section class="card">
-      <div class="section-title">
-        <h3>Recent procurements</h3>
+    <UiCard>
+      <div class="panel-title">
+        <div>
+          <h2>Последние закупки</h2>
+          <p>Свежие публикации, доступные для проверки и перехода в карточку.</p>
+        </div>
       </div>
-      <div v-if="procurements.length === 0" class="empty-state">
-        В backend пока нет закупок для отображения.
-      </div>
-      <table v-else class="table">
+      <UiEmptyState
+        v-if="procurements.length === 0"
+        title="Закупки не найдены"
+        description="После публикации первых записей они появятся в этом разделе."
+      />
+      <UiTable v-else>
         <thead>
           <tr>
-            <th>Title</th>
-            <th>Source</th>
-            <th>Customer</th>
-            <th>Amount</th>
-            <th>Status</th>
-            <th>Published</th>
+            <th>Закупка</th>
+            <th>Источник</th>
+            <th>Заказчик</th>
+            <th>Сумма</th>
+            <th>Статус</th>
+            <th>Опубликована</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="item in recentProcurements" :key="item.id">
-            <td>{{ item.title }}</td>
+            <td>
+              <strong>{{ item.title }}</strong>
+              <div class="table-subtitle">{{ item.externalId }}</div>
+              <RouterLink class="text-link" :to="`/procurements/${item.id}`">
+                Открыть карточку
+              </RouterLink>
+            </td>
             <td>{{ item.source }}</td>
-            <td>{{ item.customer || "n/a" }}</td>
+            <td>{{ item.customer || "Не указан" }}</td>
             <td>{{ formatCurrency(item.amount, item.currency) }}</td>
             <td>
-              <span class="status-chip" :class="statusTone(item.status)">
+              <UiBadge :tone="badgeTone(item.status)">
                 {{ formatEnumLabel(item.status) }}
-              </span>
+              </UiBadge>
             </td>
             <td>{{ formatDateTime(item.publishedAt) }}</td>
           </tr>
         </tbody>
-      </table>
-    </section>
+      </UiTable>
+    </UiCard>
 
     <div class="dashboard-split">
-      <section class="card">
-        <div class="section-title">
-          <h3>Source and jobs status</h3>
+      <UiCard>
+        <div class="panel-title">
+          <div>
+            <h2>Состояние источников</h2>
+            <p>Сводка по активности источников и их последним запускам.</p>
+          </div>
         </div>
-        <div v-if="sourceHealth.length === 0" class="empty-state">
-          Источники ещё не зарегистрированы.
-        </div>
-        <table v-else class="table">
+        <UiEmptyState
+          v-if="sourceHealth.length === 0"
+          title="Источники еще не зарегистрированы"
+          description="После подключения источников появится статусная таблица."
+        />
+        <UiTable v-else>
           <thead>
             <tr>
-              <th>Source</th>
-              <th>State</th>
-              <th>Latest run</th>
-              <th>Published</th>
-              <th>Records</th>
+              <th>Источник</th>
+              <th>Состояние</th>
+              <th>Последний запуск</th>
+              <th>Опубликовано</th>
+              <th>Записей</th>
             </tr>
           </thead>
           <tbody>
@@ -321,45 +400,51 @@ onMounted(() => {
                 <div class="table-subtitle">{{ item.source.code }}</div>
               </td>
               <td>
-                <span class="status-chip" :class="item.source.isActive ? 'is-success' : 'is-danger'">
-                  {{ item.source.isActive ? "Active" : "Inactive" }}
-                </span>
+                <UiBadge :tone="item.source.isActive ? 'success' : 'danger'">
+                  {{ item.source.isActive ? "Активен" : "Неактивен" }}
+                </UiBadge>
               </td>
               <td>
-                <span
+                <UiBadge
                   v-if="item.latestRun"
-                  class="status-chip"
-                  :class="statusTone(item.latestRun.status)"
+                  :tone="badgeTone(item.latestRun.status)"
                 >
                   {{ formatEnumLabel(item.latestRun.status) }}
-                </span>
-                <span v-else class="caption">No runs yet</span>
+                </UiBadge>
+                <span v-else class="muted-text">Запусков не было</span>
               </td>
               <td>{{ formatNumber(item.latestRun?.itemsPublished) }}</td>
               <td>{{ formatCompactNumber(item.totalProcurements) }}</td>
             </tr>
           </tbody>
-        </table>
-      </section>
+        </UiTable>
+      </UiCard>
 
-      <section class="card">
-        <div class="section-title">
-          <h3>Recent reports</h3>
+      <UiCard>
+        <div class="panel-title">
+          <div>
+            <h2>Последние отчеты</h2>
+            <p>Состояние отчетов и последние изменения по ним.</p>
+          </div>
         </div>
-        <div v-if="reports.length === 0" class="empty-state">Отчёты пока не созданы.</div>
+        <UiEmptyState
+          v-if="reports.length === 0"
+          title="Отчеты отсутствуют"
+          description="После генерации первых отчетов они появятся здесь."
+        />
         <div v-else class="report-list">
           <article v-for="report in reports.slice(0, 6)" :key="report.id" class="report-card">
             <div class="report-card-head">
               <strong>{{ report.name }}</strong>
-              <span class="status-chip" :class="statusTone(report.status)">
+              <UiBadge :tone="badgeTone(report.status)">
                 {{ formatEnumLabel(report.status) }}
-              </span>
+              </UiBadge>
             </div>
-            <p>{{ report.description || "No description provided." }}</p>
-            <small>Updated {{ formatDateTime(report.updatedAt) }}</small>
+            <p>{{ report.description || "Описание не заполнено." }}</p>
+            <span class="muted-text">Обновлен {{ formatDateTime(report.updatedAt) }}</span>
           </article>
         </div>
-      </section>
+      </UiCard>
     </div>
   </template>
 </template>

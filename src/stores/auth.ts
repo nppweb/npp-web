@@ -58,7 +58,7 @@ export const useAuthStore = defineStore("auth", {
           variables: { input: { email, password } }
         });
         if (!data?.login) {
-          throw new Error("Authentication failed");
+          throw new Error("Не удалось выполнить вход");
         }
         this.setSession(data.login);
         this.initialized = true;

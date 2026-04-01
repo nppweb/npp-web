@@ -1,11 +1,21 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { onMounted, reactive, ref } from "vue";
+import { RouterLink, useRouter } from "vue-router";
+import PageHeader from "../components/layout/PageHeader.vue";
+import UiBadge from "../components/ui/UiBadge.vue";
+import UiButton from "../components/ui/UiButton.vue";
+import UiCard from "../components/ui/UiCard.vue";
+import UiEmptyState from "../components/ui/UiEmptyState.vue";
+import UiErrorState from "../components/ui/UiErrorState.vue";
+import UiInput from "../components/ui/UiInput.vue";
+import UiSelect from "../components/ui/UiSelect.vue";
+import UiSkeleton from "../components/ui/UiSkeleton.vue";
+import UiTable from "../components/ui/UiTable.vue";
 import {
+  badgeTone,
   formatCurrency,
   formatDate,
-  formatEnumLabel,
-  statusTone
+  formatEnumLabel
 } from "../lib/format";
 import { apolloClient } from "../services/apollo";
 import type {
@@ -19,9 +29,15 @@ import { PROCUREMENTS_QUERY, SOURCES_QUERY } from "../services/queries";
 const router = useRouter();
 const loading = ref(false);
 const error = ref("");
-const search = ref("");
-const source = ref("");
-const status = ref<ProcurementStatus | "">("");
+const filters = reactive<{
+  search: string;
+  source: string;
+  status: ProcurementStatus | "";
+}>({
+  search: "",
+  source: "",
+  status: ""
+});
 const items = ref<Procurement[]>([]);
 const total = ref(0);
 const sources = ref<Source[]>([]);
@@ -35,11 +51,11 @@ async function load() {
       query: PROCUREMENTS_QUERY,
       variables: {
         filter:
-          search.value || source.value || status.value
+          filters.search || filters.source || filters.status
             ? {
-                ...(search.value ? { search: search.value } : {}),
-                ...(source.value ? { source: source.value } : {}),
-                ...(status.value ? { status: status.value } : {})
+                ...(filters.search ? { search: filters.search } : {}),
+                ...(filters.source ? { source: filters.source } : {}),
+                ...(filters.status ? { status: filters.status } : {})
               }
             : undefined,
         sort: { field: "PUBLISHED_AT", direction: "DESC" },
@@ -52,7 +68,7 @@ async function load() {
     items.value = data.procurementItems.items;
     total.value = data.procurementItems.total;
   } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : "Unable to load procurements";
+    error.value = caught instanceof Error ? caught.message : "Не удалось загрузить закупки";
   } finally {
     loading.value = false;
   }
@@ -71,56 +87,89 @@ async function loadSources() {
   }
 }
 
-watch([search, source, status], () => {
+function resetFilters() {
+  filters.search = "";
+  filters.source = "";
+  filters.status = "";
   void load();
-});
+}
 
 onMounted(() => {
   void loadSources();
   void load();
 });
+
+const statusOptions = [
+  { label: "Все статусы", value: "" },
+  { label: "Черновик", value: "DRAFT" },
+  { label: "Активна", value: "ACTIVE" },
+  { label: "Завершена", value: "CLOSED" },
+  { label: "В архиве", value: "ARCHIVED" }
+];
 </script>
 
 <template>
-  <section class="page-header">
-    <div>
-      <p class="eyebrow">Catalogue</p>
-      <h2>Procurements</h2>
-    </div>
-    <div class="toolbar-row">
-      <input v-model="search" placeholder="Search by title, customer, supplier" />
-      <select v-model="source">
-        <option value="">All sources</option>
-        <option v-for="item in sources" :key="item.id" :value="item.code">
-          {{ item.name }}
-        </option>
-      </select>
-      <select v-model="status">
-        <option value="">All statuses</option>
-        <option value="DRAFT">Draft</option>
-        <option value="ACTIVE">Active</option>
-        <option value="CLOSED">Closed</option>
-        <option value="ARCHIVED">Archived</option>
-      </select>
-    </div>
-  </section>
+  <PageHeader
+    title="Закупки"
+    description="Поиск, фильтрация и переход к детальной карточке закупки."
+  >
+    <template #actions>
+      <UiButton variant="secondary" @click="load">Обновить</UiButton>
+    </template>
+  </PageHeader>
 
-  <div v-if="loading" class="card">Loading procurements...</div>
-  <div v-else-if="error" class="card error-text">{{ error }}</div>
-  <section v-else class="card">
-    <div class="section-title">
-      <h3>{{ total }} results</h3>
+  <UiCard>
+    <form class="toolbar-row" @submit.prevent="load">
+      <UiInput
+        v-model="filters.search"
+        label="Поиск"
+        placeholder="Название, заказчик или поставщик"
+      />
+      <UiSelect
+        v-model="filters.source"
+        label="Источник"
+        :options="[
+          { label: 'Все источники', value: '' },
+          ...sources.map((item) => ({ label: item.name, value: item.code }))
+        ]"
+      />
+      <UiSelect v-model="filters.status" label="Статус" :options="statusOptions" />
+      <div class="inline-actions">
+        <UiButton type="submit">Применить</UiButton>
+        <UiButton type="button" variant="ghost" @click="resetFilters">Сбросить</UiButton>
+      </div>
+    </form>
+  </UiCard>
+
+  <UiCard v-if="loading">
+    <UiSkeleton :lines="7" />
+  </UiCard>
+  <UiCard v-else-if="error">
+    <UiErrorState :description="error" action-label="Повторить" @action="load" />
+  </UiCard>
+  <UiCard v-else>
+    <div class="panel-title">
+      <div>
+        <h2>Результаты</h2>
+        <p>Найдено записей: {{ total }}</p>
+      </div>
     </div>
-    <div v-if="items.length === 0" class="empty-state">No procurements matched your filters.</div>
-    <table v-else class="table">
+
+    <UiEmptyState
+      v-if="items.length === 0"
+      title="Ничего не найдено"
+      description="Измените параметры поиска или сбросьте фильтры."
+    />
+
+    <UiTable v-else>
       <thead>
         <tr>
-          <th>Title</th>
-          <th>Source</th>
-          <th>Customer</th>
-          <th>Amount</th>
-          <th>Status</th>
-          <th>Published</th>
+          <th>Закупка</th>
+          <th>Источник</th>
+          <th>Заказчик</th>
+          <th>Сумма</th>
+          <th>Статус</th>
+          <th>Опубликована</th>
         </tr>
       </thead>
       <tbody>
@@ -133,18 +182,21 @@ onMounted(() => {
           <td>
             <strong>{{ item.title }}</strong>
             <div class="table-subtitle">{{ item.externalId }}</div>
+            <RouterLink class="text-link" :to="`/procurements/${item.id}`">
+              Открыть карточку
+            </RouterLink>
           </td>
           <td>{{ item.source }}</td>
-          <td>{{ item.customer || "n/a" }}</td>
+          <td>{{ item.customer || "Не указан" }}</td>
           <td>{{ formatCurrency(item.amount, item.currency) }}</td>
           <td>
-            <span class="status-chip" :class="statusTone(item.status)">
+            <UiBadge :tone="badgeTone(item.status)">
               {{ formatEnumLabel(item.status) }}
-            </span>
+            </UiBadge>
           </td>
           <td>{{ formatDate(item.publishedAt) }}</td>
         </tr>
       </tbody>
-    </table>
-  </section>
+    </UiTable>
+  </UiCard>
 </template>
