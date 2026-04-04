@@ -1,20 +1,35 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
-ARG VITE_GRAPHQL_ENDPOINT=/graphql
-ENV VITE_GRAPHQL_ENDPOINT=${VITE_GRAPHQL_ENDPOINT}
+ARG NUXT_PUBLIC_GRAPHQL_ENDPOINT=/graphql
+ENV NUXT_PUBLIC_GRAPHQL_ENDPOINT=${NUXT_PUBLIC_GRAPHQL_ENDPOINT}
 
 COPY package.json package-lock.json* ./
 RUN npm ci --fetch-retries 5 --fetch-retry-mintimeout 20000 --fetch-retry-maxtimeout 120000
 
-COPY index.html tsconfig.json tsconfig.app.json tsconfig.base.json tsconfig.node.json vite.config.ts ./
-COPY public ./public
-COPY src ./src
+COPY app.vue nuxt.config.ts tailwind.config.ts tsconfig.json ./
+COPY assets ./assets
+COPY components ./components
+COPY composables ./composables
+COPY graphql ./graphql
+COPY layouts ./layouts
+COPY middleware ./middleware
+COPY pages ./pages
+COPY plugins ./plugins
+COPY types ./types
+COPY utils ./utils
 
 RUN npm run build
 
-FROM nginx:1.27-alpine AS runtime
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
+FROM node:20-alpine AS runtime
+WORKDIR /app
 
-EXPOSE 80
+ENV HOST=0.0.0.0
+ENV PORT=3000
+ENV NODE_ENV=production
+
+COPY --from=build /app/.output ./.output
+
+EXPOSE 3000
+
+CMD ["node", ".output/server/index.mjs"]

@@ -1,7 +1,7 @@
 # aimsora
 
-Frontend AIMSORA на `Vue 3 + Vite + TypeScript + Pinia + Apollo`.
-Приложение стартует с авторизации и после входа открывает внутренний рабочий интерфейс: дашборд, закупки, источники, запуски, отчёты и пользователей.
+Frontend AIMSORA переписан на `Nuxt 3 + TypeScript + Tailwind CSS + Radix Vue + Apollo GraphQL`.
+Интерфейс стартует с авторизации и после входа открывает защищённый dashboard со страницами закупок, источников, запусков, отчётов и пользователей.
 
 ## Локальный запуск
 
@@ -18,32 +18,23 @@ npm run dev
 
 ## Переменные окружения
 
-- `VITE_GRAPHQL_ENDPOINT`
-  По умолчанию `/graphql`.
-- `VITE_GRAPHQL_PROXY_TARGET`
-  Используется только локально для проксирования запросов из Vite.
-  По умолчанию `http://localhost:3000`.
+- `NUXT_PUBLIC_GRAPHQL_ENDPOINT`
+  Публичный GraphQL endpoint для frontend-клиента. По умолчанию `/graphql`.
+- `NUXT_GRAPHQL_PROXY_TARGET`
+  Используется в dev-режиме для проксирования запросов в backend. По умолчанию `http://localhost:3000`.
 
 Пример:
 
 ```bash
-VITE_GRAPHQL_ENDPOINT=/graphql
-VITE_GRAPHQL_PROXY_TARGET=http://localhost:3000
+NUXT_PUBLIC_GRAPHQL_ENDPOINT=/graphql
+NUXT_GRAPHQL_PROXY_TARGET=http://localhost:3000
 ```
 
-## Тестовый вход
-
-Для локальной среды можно использовать:
-
-- `admin@admin.ru / admin`
-
-Эти данные показываются на странице `/login` только в `dev/local` режиме.
-
-## Основные маршруты
+## Маршруты
 
 - `/` — редирект на `/login` или `/dashboard` в зависимости от сессии
 - `/login` — публичная страница входа
-- `/dashboard` — оперативная сводка по системе
+- `/dashboard` — основной dashboard
 - `/procurements` — список закупок
 - `/procurements/:id` — карточка закупки
 - `/sources` — источники и последние запуски
@@ -51,19 +42,34 @@ VITE_GRAPHQL_PROXY_TARGET=http://localhost:3000
 - `/reports` — список отчётов
 - `/users` — управление пользователями, доступно только `ADMIN`
 
-## Что проверить после запуска
+## Тестовый вход
 
-1. Открывается `/login`, а `/` редиректит корректно.
+В dev-режиме на странице `/login` показываются тестовые данные:
+
+- `admin@admin.ru / admin`
+
+## Что проверить вручную
+
+1. `/` корректно редиректит на `/login` или `/dashboard`.
 2. Успешный вход переводит на `/dashboard`.
-3. После обновления страницы сессия сохраняется, если токен валиден.
-4. `ADMIN` видит раздел `/users`, остальные пользователи его не видят.
-5. `logout` возвращает на `/login`.
-6. На всех основных страницах работают `loading / empty / error` состояния.
+3. После обновления страницы сессия сохраняется, если refresh token валиден.
+4. `ADMIN` видит `/users`, остальные пользователи автоматически уводятся на `/dashboard`.
+5. `logout` очищает сессию и возвращает на `/login`.
+6. На страницах `dashboard`, `procurements`, `sources`, `jobs`, `reports`, `users` работают `loading / empty / error` состояния.
 
-## Сборка
+## Проверка качества
 
 ```bash
+npm run typecheck
 npm run build
 ```
 
-Собранный production bundle попадает в `dist/`.
+После production-сборки приложение можно поднять из `.output`:
+
+```bash
+node .output/server/index.mjs
+```
+
+## Docker
+
+`Dockerfile` переведён на Nuxt runtime и собирает `.output` с запуском через Node server.
