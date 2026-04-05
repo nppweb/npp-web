@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { getProcurementNppFocus } from "~/utils/procurement-focus";
+
 definePageMeta({
   title: "Аналитика",
   description: "Сигналы по срокам, источникам и структуре потока",
@@ -9,13 +11,46 @@ useHead({
   title: "Аналитика"
 });
 
-const shortDateFormatter = new Intl.DateTimeFormat("ru-RU", {
-  day: "2-digit",
-  month: "short"
-});
-
 const analytics = useAnalyticsData();
 const summary = computed(() => analytics.summary.value);
+const nppPeriodLabel = computed(() =>
+  summary.value
+    ? new Date(summary.value.nppPeriodStart).toLocaleDateString("ru-RU", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric"
+      })
+    : ""
+);
+
+const nppSummaryCards = computed(() => {
+  if (!summary.value) {
+    return [];
+  }
+
+  return [
+    {
+      label: "Атомные закупки",
+      value: formatNumber(summary.value.nppProcurementCount),
+      hint: `Контур АЭС с ${nppPeriodLabel.value}`
+    },
+    {
+      label: "Контракты 44/223-ФЗ",
+      value: formatNumber(summary.value.nppContractCount),
+      hint: "Отдельный слой исполненных и действующих договоров"
+    },
+    {
+      label: "Станции в контуре",
+      value: formatNumber(summary.value.nppStationsCovered),
+      hint: "Сколько разных АЭС уже покрыто собранными данными"
+    },
+    {
+      label: "Сумма по контуру",
+      value: formatCurrency(summary.value.nppTotalAmount, "RUB"),
+      hint: "Сумма по атомным закупкам и договорам с заполненной ценой"
+    }
+  ];
+});
 
 const summaryCards = computed(() => {
   if (!summary.value) {
@@ -55,6 +90,21 @@ const summaryCards = computed(() => {
     }
   ];
 });
+
+const nppGuide = computed(() => [
+  {
+    title: "Период фиксирован",
+    text: `Все атомные диаграммы на этой странице считаются от ${nppPeriodLabel.value || "01.01.2025"}, чтобы динамика не прыгала вместе с текущим окном.`
+  },
+  {
+    title: "Сначала смотри покрытие",
+    text: "Блоки по станциям и источникам показывают, где у нас уже есть плотные данные, а где контур ещё нужно расширять."
+  },
+  {
+    title: "Потом переходи к карточкам",
+    text: "Список свежих закупок внизу помогает быстро проверить, что в атомный слой попали именно рабочие закупки, а не шум."
+  }
+]);
 
 const analyticsGuide = computed(() => [
   {
@@ -109,6 +159,52 @@ const supplierExposureItems = computed(() =>
     valueLabel: formatPercent(item.sharePercent),
     note: `${formatNumber(item.procurementCount)} закупок · ${formatCurrency(item.totalAmount, "RUB")}`,
     accent: "primary" as const
+  }))
+);
+
+const nppTimelineItems = computed(() =>
+  (summary.value?.nppMonthlyDynamics ?? []).map((item, index) => ({
+    label: item.label,
+    shortLabel: item.label.split(" ")[0] ?? item.label,
+    value: item.procurementCount,
+    valueLabel: formatNumber(item.procurementCount),
+    note: formatCurrency(item.totalAmount, "RUB"),
+    accent:
+      item.procurementCount === 0
+        ? ("muted" as const)
+        : index >= (summary.value?.nppMonthlyDynamics.length ?? 0) - 3
+          ? ("success" as const)
+          : ("primary" as const)
+  }))
+);
+
+const nppStationItems = computed(() =>
+  (summary.value?.nppStationCoverage ?? []).map((item) => ({
+    label: item.station,
+    value: item.procurementCount,
+    valueLabel: formatNumber(item.procurementCount),
+    note: formatCurrency(item.totalAmount, "RUB"),
+    accent: "primary" as const
+  }))
+);
+
+const nppSourceItems = computed(() =>
+  (summary.value?.nppSourceCoverage ?? []).map((item) => ({
+    label: item.name,
+    value: item.procurementCount,
+    valueLabel: formatNumber(item.procurementCount),
+    note: `${item.source} · ${formatCurrency(item.totalAmount, "RUB")}`,
+    accent: item.source.includes("contracts") ? ("warning" as const) : ("success" as const)
+  }))
+);
+
+const nppCustomerItems = computed(() =>
+  (summary.value?.nppCustomerCoverage ?? []).map((item) => ({
+    label: item.customer,
+    value: item.procurementCount,
+    valueLabel: formatNumber(item.procurementCount),
+    note: formatCurrency(item.totalAmount, "RUB"),
+    accent: item.customer.includes("РОСАТОМ") ? ("success" as const) : ("primary" as const)
   }))
 );
 
@@ -181,6 +277,10 @@ function riskLabel(level?: string | null) {
   return "Стабильно";
 }
 
+function procurementFocusLabel(rawPayload?: Record<string, unknown> | null) {
+  return getProcurementNppFocus(rawPayload);
+}
+
 async function reload() {
   await analytics.load();
 }
@@ -217,12 +317,164 @@ onMounted(() => {
     <Card class="overflow-hidden border-border/70 bg-gradient-to-br from-background via-background to-muted/25">
       <CardContent class="grid gap-6 p-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div class="space-y-4">
-          <p class="text-sm font-medium uppercase tracking-[0.2em] text-muted-foreground">Как читать страницу</p>
+          <p class="text-sm font-medium uppercase tracking-[0.2em] text-muted-foreground">Атомный контур</p>
           <div class="space-y-2">
-            <h2 class="text-2xl font-semibold tracking-tight">Здесь видно не только “сколько”, но и “где проблема”</h2>
+            <h2 class="text-2xl font-semibold tracking-tight">Здесь видно не только “сколько”, но и “где у нас реально собран контур АЭС”</h2>
             <p class="max-w-3xl text-sm leading-6 text-muted-foreground">
-              Верхние карточки дают быстрый срез по срокам и качеству потока, а диаграммы ниже показывают,
-              где именно концентрируется риск и какие зоны требуют следующего действия.
+              Верхний блок теперь работает как отдельная аналитика по закупкам и договорам АЭС России с фиксированным периодом с
+              {{ nppPeriodLabel }}. Ниже остаётся общий операционный слой по срокам, рискам и здоровью источников.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+          <div
+            v-for="item in nppGuide"
+            :key="item.title"
+            class="rounded-3xl border border-border/70 bg-background/80 p-4"
+          >
+            <p class="text-sm font-semibold">{{ item.title }}</p>
+            <p class="mt-2 text-sm leading-6 text-muted-foreground">{{ item.text }}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <StatCard
+        v-for="card in nppSummaryCards"
+        :key="card.label"
+        :label="card.label"
+        :value="card.value"
+        :hint="card.hint"
+      />
+    </div>
+
+    <div class="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+      <Card>
+        <CardHeader>
+          <CardTitle>Динамика по месяцам с января 2025</CardTitle>
+          <CardDescription>
+            Здесь видно, как атомный контур заполняется во времени: по каждому месяцу одновременно показаны количество карточек и сумма.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <MetricColumnChart
+            :items="nppTimelineItems"
+            empty-text="После следующего цикла сбора здесь появится помесячная динамика по атомному контуру."
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Покрытие по станциям</CardTitle>
+          <CardDescription>
+            Блок нужен для быстрой проверки, что данные распределяются не только по Росатому в целом, но и по конкретным АЭС.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <MetricBarList
+            :items="nppStationItems"
+            empty-text="Пока ни одна карточка не привязана к конкретной станции."
+          />
+        </CardContent>
+      </Card>
+    </div>
+
+    <div class="grid gap-4 xl:grid-cols-[1fr_1fr]">
+      <Card>
+        <CardHeader>
+          <CardTitle>Вклад источников в атомный поток</CardTitle>
+          <CardDescription>
+            Сравнение помогает понять, какой парсер сейчас реально даёт объём: notices, 44-ФЗ контракты или 223-ФЗ договоры.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <MetricBarList
+            :items="nppSourceItems"
+            empty-text="После первого успешного прогона новые атомные источники появятся здесь."
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Ключевые заказчики атомного контура</CardTitle>
+          <CardDescription>
+            Этот блок показывает, кто формирует основной объём атомных закупок и где уже появились прямые заказчики уровня АЭС и сервисных обществ.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <MetricBarList
+            :items="nppCustomerItems"
+            empty-text="После накопления карточек с заказчиками здесь появится раскладка по атомному контуру."
+          />
+        </CardContent>
+      </Card>
+    </div>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Свежие закупки и договоры АЭС</CardTitle>
+        <CardDescription>
+          Последние атомные карточки показываются отдельно, чтобы можно было быстро проверить качество отбора и увидеть целевую станцию.
+        </CardDescription>
+      </CardHeader>
+      <CardContent v-if="summary.nppRecentProcurements.length === 0">
+        <EmptyState
+          title="Атомный контур ещё пуст"
+          description="После прогона новых источников здесь появятся свежие закупки и договоры по АЭС."
+        />
+      </CardContent>
+      <CardContent v-else class="px-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Карточка</TableHead>
+              <TableHead>Источник</TableHead>
+              <TableHead>Заказчик / Цель</TableHead>
+              <TableHead>Сумма</TableHead>
+              <TableHead>Дата</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-for="item in summary.nppRecentProcurements" :key="item.id">
+              <TableCell>
+                <NuxtLink :to="`/procurements/${item.id}`" class="font-medium text-primary hover:underline">
+                  {{ item.title }}
+                </NuxtLink>
+              </TableCell>
+              <TableCell>{{ item.source }}</TableCell>
+              <TableCell>
+                <div class="space-y-1">
+                  <p>{{ item.customer || "Заказчик не указан" }}</p>
+                  <p class="text-sm text-muted-foreground">
+                    {{
+                      procurementFocusLabel(item.rawPayload)
+                        ? `Цель АЭС: ${procurementFocusLabel(item.rawPayload)}`
+                        : "Целевая станция пока не выделена"
+                    }}
+                  </p>
+                </div>
+              </TableCell>
+              <TableCell>{{ formatCurrency(item.amount, item.currency) }}</TableCell>
+              <TableCell>{{ formatDateTime(item.publishedAt ?? item.updatedAt) }}</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+
+    <Card class="overflow-hidden border-border/70 bg-gradient-to-br from-background via-background to-muted/25">
+      <CardContent class="grid gap-6 p-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div class="space-y-4">
+          <p class="text-sm font-medium uppercase tracking-[0.2em] text-muted-foreground">Общий поток</p>
+          <div class="space-y-2">
+            <h2 class="text-2xl font-semibold tracking-tight">Операционный слой остаётся отдельным</h2>
+            <p class="max-w-3xl text-sm leading-6 text-muted-foreground">
+              Ниже идёт уже общий контур по всем источникам: сроки, здоровье pipeline и концентрация по поставщикам. Так атомная аналитика не смешивается
+              с ежедневным мониторингом рисков.
             </p>
           </div>
         </div>

@@ -124,6 +124,11 @@ export const DASHBOARD_QUERY = gql`
 export const ANALYTICS_QUERY = gql`
   query AnalyticsSummary {
     analyticsSummary {
+      nppPeriodStart
+      nppProcurementCount
+      nppContractCount
+      nppStationsCovered
+      nppTotalAmount
       closingSoonCount
       overdueCount
       highValueCount
@@ -154,6 +159,45 @@ export const ANALYTICS_QUERY = gql`
         procurementCount
         totalAmount
         sharePercent
+      }
+      nppMonthlyDynamics {
+        label
+        procurementCount
+        totalAmount
+      }
+      nppStationCoverage {
+        station
+        procurementCount
+        totalAmount
+      }
+      nppSourceCoverage {
+        source
+        name
+        procurementCount
+        totalAmount
+      }
+      nppCustomerCoverage {
+        customer
+        procurementCount
+        totalAmount
+      }
+      nppRecentProcurements {
+        id
+        externalId
+        source
+        title
+        description
+        customer
+        supplier
+        amount
+        currency
+        status
+        publishedAt
+        deadlineAt
+        sourceUrl
+        createdAt
+        updatedAt
+        rawPayload
       }
       attentionProcurements {
         id

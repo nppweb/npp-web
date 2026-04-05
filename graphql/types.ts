@@ -216,7 +216,37 @@ export type AnalyticsSupplierExposureItem = {
   sharePercent: number;
 };
 
+export type AnalyticsNppTimelineItem = {
+  label: string;
+  procurementCount: number;
+  totalAmount: number;
+};
+
+export type AnalyticsNppStationItem = {
+  station: string;
+  procurementCount: number;
+  totalAmount: number;
+};
+
+export type AnalyticsNppSourceItem = {
+  source: string;
+  name: string;
+  procurementCount: number;
+  totalAmount: number;
+};
+
+export type AnalyticsNppCustomerItem = {
+  customer: string;
+  procurementCount: number;
+  totalAmount: number;
+};
+
 export type AnalyticsSummary = {
+  nppPeriodStart: string;
+  nppProcurementCount: number;
+  nppContractCount: number;
+  nppStationsCovered: number;
+  nppTotalAmount: number;
   closingSoonCount: number;
   overdueCount: number;
   highValueCount: number;
@@ -228,6 +258,11 @@ export type AnalyticsSummary = {
   deadlinePressure: AnalyticsDeadlineBucket[];
   sourceHealth: AnalyticsSourceHealthItem[];
   supplierExposure: AnalyticsSupplierExposureItem[];
+  nppMonthlyDynamics: AnalyticsNppTimelineItem[];
+  nppStationCoverage: AnalyticsNppStationItem[];
+  nppSourceCoverage: AnalyticsNppSourceItem[];
+  nppCustomerCoverage: AnalyticsNppCustomerItem[];
+  nppRecentProcurements: Procurement[];
   attentionProcurements: Procurement[];
 };
 
