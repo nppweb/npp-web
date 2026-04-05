@@ -7,10 +7,12 @@ export function useProcurementsData() {
   const filters = reactive<{
     search: string;
     source: string;
+    nppFocus: string;
     status: ProcurementStatus | "";
   }>({
     search: "",
     source: "",
+    nppFocus: "",
     status: ""
   });
   const total = ref(0);
@@ -40,10 +42,11 @@ export function useProcurementsData() {
         query: PROCUREMENTS_QUERY,
         variables: {
           filter:
-            filters.search || filters.source || filters.status
+            filters.search || filters.source || filters.nppFocus || filters.status
               ? {
                   ...(filters.search ? { search: filters.search } : {}),
                   ...(filters.source ? { source: filters.source } : {}),
+                  ...(filters.nppFocus ? { nppFocus: filters.nppFocus } : {}),
                   ...(filters.status ? { status: filters.status } : {})
                 }
               : undefined,
@@ -72,6 +75,7 @@ export function useProcurementsData() {
   async function resetFilters() {
     filters.search = "";
     filters.source = "";
+    filters.nppFocus = "";
     filters.status = "";
     page.value = 1;
     await load();

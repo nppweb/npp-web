@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { getProcurementNppFocus } from "~/utils/procurement-focus";
+
 definePageMeta({
   title: "Карточка закупки",
   description: "Структурированная информация по выбранной закупке",
@@ -14,6 +16,7 @@ const description = computed(
 );
 
 const rawJson = computed(() => JSON.stringify(detail.item.value?.rawPayload ?? {}, null, 2));
+const targetStation = computed(() => getProcurementNppFocus(detail.item.value?.rawPayload));
 
 watchEffect(() => {
   useHead({
@@ -101,12 +104,16 @@ onMounted(() => {
 
       <Card>
         <CardHeader>
-          <CardTitle class="text-base">Контрагенты и сумма</CardTitle>
+          <CardTitle class="text-base">Контрагенты, цель и сумма</CardTitle>
         </CardHeader>
         <CardContent class="grid gap-4 sm:grid-cols-2">
           <div>
             <p class="text-sm text-muted-foreground">Заказчик</p>
             <p class="mt-1 font-medium">{{ detail.item.value.customer || "Не указан" }}</p>
+          </div>
+          <div>
+            <p class="text-sm text-muted-foreground">Станция назначения</p>
+            <p class="mt-1 font-medium">{{ targetStation || "Не выделена" }}</p>
           </div>
           <div>
             <p class="text-sm text-muted-foreground">Поставщик</p>

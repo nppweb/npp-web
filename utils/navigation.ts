@@ -50,15 +50,9 @@ export const APP_NAVIGATION_GROUPS: AppNavigationGroup[] = [
         roles: ["ANALYST", "DEVELOPER", "ADMIN"]
       },
       {
-        title: "Коллекторы",
-        href: "/collectors",
-        description: "Ручной запуск сборщиков",
-        roles: ["DEVELOPER", "ADMIN"]
-      },
-      {
-        title: "Отчёты парсеров",
+        title: "Операции парсеров",
         href: "/jobs",
-        description: "Инциденты, ошибки и журнал работы сборщиков",
+        description: "Ручной запуск, журнал прогонов и инциденты сборщиков",
         roles: ["DEVELOPER", "ADMIN"]
       }
     ]

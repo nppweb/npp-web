@@ -1,15 +1,22 @@
 <script setup lang="ts">
+import { TRIGGER_COLLECTORS_MUTATION } from "~/graphql/documents";
+import type { CollectorTriggerResult } from "~/graphql/types";
+
 definePageMeta({
-  title: "Отчёты парсеров",
-  description: "Журнал запусков, ошибок и инцидентов по сборщикам",
+  title: "Операции парсеров",
+  description: "Ручной запуск сборщиков, журнал прогонов и технические инциденты",
   roles: ["DEVELOPER", "ADMIN"]
 });
 
 useHead({
-  title: "Отчёты парсеров"
+  title: "Операции парсеров"
 });
 
+const apollo = useApollo();
+const toast = useToast();
 const jobs = useJobsData();
+const triggerLoading = ref(false);
+const pendingByCode = reactive<Record<string, boolean>>({});
 const allSourcesValue = "__ALL_SOURCES__";
 
 const selectedSource = computed({
@@ -19,11 +26,21 @@ const selectedSource = computed({
   }
 });
 
+const sourceRows = computed(() => jobs.sources.value);
+const selectedSourceName = computed(
+  () => jobs.sources.value.find((item) => item.code === jobs.sourceFilter.value)?.name ?? "выбранный источник"
+);
+
 const summaryCards = computed(() => [
+  {
+    label: "Доступно сборщиков",
+    value: formatNumber(sourceRows.value.length),
+    hint: "Источники, которые можно запускать вручную"
+  },
   {
     label: "Всего запусков",
     value: formatNumber(jobs.runs.value.length),
-    hint: "Количество запусков в текущей выборке"
+    hint: "Количество прогонов в текущей выборке"
   },
   {
     label: "Успешные",
@@ -35,19 +52,105 @@ const summaryCards = computed(() => [
     value: formatNumber(
       jobs.runs.value.filter((item) => item.status === "FAILED" || item.status === "PARTIAL").length
     ),
-    hint: "Требуют внимания команды"
+    hint: "Требуют инженерного внимания"
   }
 ]);
 
-onMounted(async () => {
+const launchSummary = computed(() => [
+  {
+    label: "Активные источники",
+    value: formatNumber(sourceRows.value.filter((item) => item.isActive).length),
+    hint: "Подключены в текущем окружении"
+  },
+  {
+    label: "С недавним запуском",
+    value: formatNumber(sourceRows.value.filter((item) => Boolean(item.lastRun)).length),
+    hint: "Есть запись о последнем прогоне"
+  }
+]);
+
+function setPending(sourceCodes: string[], value: boolean) {
+  for (const sourceCode of sourceCodes) {
+    pendingByCode[sourceCode] = value;
+  }
+}
+
+async function loadAll() {
   await Promise.all([jobs.loadSources(), jobs.load()]);
+}
+
+async function triggerCollectors(sourceCodes?: string[]) {
+  const targetCodes =
+    Array.isArray(sourceCodes) && sourceCodes.length > 0
+      ? sourceCodes
+      : sourceRows.value.map((item) => item.code);
+
+  if (targetCodes.length === 0) {
+    toast.warning("Нет доступных источников", "Сначала дождитесь загрузки списка источников.");
+    return;
+  }
+
+  triggerLoading.value = true;
+  setPending(targetCodes, true);
+
+  try {
+    const result = await apollo.mutate<{ triggerCollectors: CollectorTriggerResult }>({
+      mutation: TRIGGER_COLLECTORS_MUTATION,
+      variables: {
+        sourceCodes: sourceCodes && sourceCodes.length > 0 ? sourceCodes : null
+      }
+    });
+
+    const payload = result.data?.triggerCollectors;
+
+    if (!payload) {
+      throw new Error("Не удалось запустить сборщики");
+    }
+
+    const acceptedItems = payload.items.filter((item) => item.accepted);
+    const skippedItems = payload.items.filter((item) => !item.accepted);
+
+    if (acceptedItems.length > 0) {
+      toast.success(
+        acceptedItems.length === 1 ? "Сборщик запущен" : "Сборщики запущены",
+        acceptedItems
+          .map((item) => `${item.sourceName}: ${item.runKey ?? "без ключа"}`)
+          .join(" • ")
+      );
+    }
+
+    if (skippedItems.length > 0) {
+      toast.warning(
+        skippedItems.length === 1 ? "Часть запуска пропущена" : "Некоторые сборщики не запущены",
+        skippedItems
+          .map((item) => `${item.sourceName}: ${item.message ?? "пропущено"}`)
+          .join(" • ")
+      );
+    }
+
+    window.setTimeout(() => {
+      void loadAll();
+    }, 1500);
+  } catch (caught) {
+    toast.error(
+      "Не удалось запустить сборщики",
+      caught instanceof Error ? caught.message : "Попробуйте ещё раз."
+    );
+  } finally {
+    setPending(targetCodes, false);
+    triggerLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadAll();
 });
 </script>
 
 <template>
   <PageHeader
-    title="Отчёты парсеров"
-    description="Инженерный журнал запусков по сбору и публикации данных с деталями ошибок."
+    title="Операции парсеров"
+    description="Единая зона для ручного запуска сборщиков, чтения последних прогонов и разбора технических инцидентов."
   >
     <template #actions>
       <div class="flex items-end gap-2">
@@ -65,8 +168,21 @@ onMounted(async () => {
             </SelectContent>
           </Select>
         </div>
-        <Button variant="secondary" :disabled="jobs.loading.value" @click="jobs.load()">
-          {{ jobs.loading.value ? "Загрузка..." : "Показать" }}
+        <Button
+          variant="secondary"
+          :disabled="triggerLoading || sourceRows.length === 0"
+          @click="triggerCollectors(jobs.sourceFilter.value ? [jobs.sourceFilter.value] : undefined)"
+        >
+          {{
+            triggerLoading
+              ? "Запуск..."
+              : jobs.sourceFilter.value
+                ? `Запустить ${selectedSourceName}`
+                : "Запустить все"
+          }}
+        </Button>
+        <Button variant="secondary" :disabled="jobs.loading.value" @click="loadAll()">
+          {{ jobs.loading.value ? "Загрузка..." : "Обновить" }}
         </Button>
       </div>
     </template>
@@ -94,10 +210,144 @@ onMounted(async () => {
       />
     </div>
 
+    <div class="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+      <Card class="border-border/70 bg-gradient-to-br from-background via-background to-muted/20">
+        <CardHeader>
+          <CardTitle>Панель запуска</CardTitle>
+          <CardDescription>
+            Здесь собраны ручной старт и быстрые ориентиры по доступности источников. Повторный запуск уже активного
+            процесса будет пропущен сервером.
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-5">
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div
+              v-for="item in launchSummary"
+              :key="item.label"
+              class="rounded-3xl border bg-muted/15 p-4"
+            >
+              <p class="text-sm text-muted-foreground">{{ item.label }}</p>
+              <p class="mt-2 text-2xl font-semibold">{{ item.value }}</p>
+              <p class="mt-2 text-sm leading-6 text-muted-foreground">{{ item.hint }}</p>
+            </div>
+          </div>
+
+          <div class="rounded-3xl border bg-muted/15 p-4">
+            <p class="text-sm font-medium">Как пользоваться этой страницей</p>
+            <p class="mt-2 text-sm leading-6 text-muted-foreground">
+              Сначала можно вручную запустить нужный источник, а ниже сразу проверить, чем закончился прогон и были ли
+              потери или ошибки публикации.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <Button
+              :disabled="triggerLoading || sourceRows.length === 0"
+              @click="triggerCollectors(jobs.sourceFilter.value ? [jobs.sourceFilter.value] : undefined)"
+            >
+              {{
+                triggerLoading
+                  ? "Запуск..."
+                  : jobs.sourceFilter.value
+                    ? `Запустить ${selectedSourceName}`
+                    : "Запустить все источники"
+              }}
+            </Button>
+            <Button
+              v-if="jobs.sourceFilter.value"
+              variant="outline"
+              :disabled="triggerLoading || sourceRows.length === 0"
+              @click="triggerCollectors()"
+            >
+              Запустить весь контур
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Источники и ручной запуск</CardTitle>
+          <CardDescription>
+            Компактный список по каждому сборщику: активность, последний прогон и точечный запуск без перехода в другой
+            раздел.
+          </CardDescription>
+        </CardHeader>
+        <CardContent v-if="sourceRows.length === 0">
+          <EmptyState
+            title="Источники не найдены"
+            description="После загрузки подключённых источников здесь появятся доступные сборщики."
+          />
+        </CardContent>
+        <CardContent v-else class="grid gap-4 xl:grid-cols-2">
+          <div
+            v-for="item in sourceRows"
+            :key="item.id"
+            class="rounded-2xl border bg-background p-5"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="space-y-2">
+                <Badge variant="secondary" class="w-fit">{{ formatEnumLabel(item.kind) }}</Badge>
+                <div>
+                  <p class="text-base font-semibold">{{ item.name }}</p>
+                  <p class="text-sm text-muted-foreground">{{ item.code }}</p>
+                </div>
+              </div>
+              <Badge :variant="item.isActive ? 'success' : 'destructive'">
+                {{ item.isActive ? "Активен" : "Неактивен" }}
+              </Badge>
+            </div>
+
+            <p class="mt-4 text-sm text-muted-foreground">
+              {{ item.description || "Описание для источника пока не заполнено." }}
+            </p>
+
+            <div class="mt-4 grid gap-2 text-sm text-muted-foreground">
+              <div class="flex items-center justify-between">
+                <span>Последний запуск</span>
+                <span class="font-medium text-foreground">
+                  {{ item.lastRun ? formatDateTime(item.lastRun.startedAt) : "Нет данных" }}
+                </span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span>Статус</span>
+                <span class="font-medium text-foreground">
+                  {{ item.lastRun ? formatEnumLabel(item.lastRun.status) : "Ещё не запускался" }}
+                </span>
+              </div>
+            </div>
+
+            <div class="mt-5 flex items-center justify-between gap-3">
+              <a
+                v-if="item.baseUrl"
+                :href="item.baseUrl"
+                target="_blank"
+                rel="noreferrer"
+                class="text-sm font-medium text-primary hover:underline"
+              >
+                Открыть источник
+              </a>
+              <span v-else class="text-sm text-muted-foreground">Адрес не указан</span>
+
+              <Button
+                :disabled="triggerLoading || pendingByCode[item.code]"
+                @click="triggerCollectors([item.code])"
+              >
+                {{ pendingByCode[item.code] ? "Запуск..." : "Запустить" }}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+
     <Card>
       <CardHeader>
         <CardTitle>Журнал запусков</CardTitle>
-        <CardDescription>По каждому запуску видны источник, статус, длительность и технические детали инцидентов.</CardDescription>
+        <CardDescription>
+          По каждому прогону видны источник, статус, длительность и технические детали инцидентов. Фильтр сверху
+          помогает быстро сузить журнал до конкретного сборщика.
+        </CardDescription>
       </CardHeader>
       <CardContent v-if="jobs.runs.value.length === 0">
         <EmptyState

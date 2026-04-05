@@ -93,6 +93,7 @@ export const DASHBOARD_QUERY = gql`
         sourceUrl
         createdAt
         updatedAt
+        rawPayload
       }
       recentSourceRuns {
         id
@@ -199,6 +200,7 @@ export const PROCUREMENTS_QUERY = gql`
         deadlineAt
         sourceUrl
         updatedAt
+        rawPayload
       }
     }
   }

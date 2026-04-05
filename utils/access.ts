@@ -57,8 +57,8 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   },
   {
     key: "jobs.view",
-    label: "Отчёты парсеров",
-    description: "Журнал запусков, ошибок и технических инцидентов по сборщикам.",
+    label: "Операции парсеров",
+    description: "Ручной запуск, журнал прогонов и технические инциденты по сборщикам.",
     category: "Инженерия парсеров"
   },
   {
@@ -81,8 +81,8 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   },
   {
     key: "collectors.run",
-    label: "Коллекторы",
-    description: "Ручной запуск сборщиков данных.",
+    label: "Запуск сборщиков",
+    description: "Право на ручной запуск источников из объединённой инженерной панели.",
     category: "Инженерия парсеров"
   },
   {

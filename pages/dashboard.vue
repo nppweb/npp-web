@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { getProcurementNppFocus } from "~/utils/procurement-focus";
+
 definePageMeta({
   title: "Дашборд",
   description: "Ролевой dashboard по закупкам, аналитике и контуру сбора"
@@ -6,6 +8,11 @@ definePageMeta({
 
 useHead({
   title: "Дашборд"
+});
+
+const shortDateFormatter = new Intl.DateTimeFormat("ru-RU", {
+  day: "2-digit",
+  month: "short"
 });
 
 const auth = useAuthSession();
@@ -42,30 +49,34 @@ const error = computed(
     (canViewScraperOverview.value ? scraperAdmin.error.value : "")
 );
 
-const businessCards = computed(() => {
+const readyReportsCount = computed(() =>
+  reportsData.reports.value.filter((item) => item.status === "READY").length
+);
+
+const overviewCards = computed(() => {
   if (!summary.value) {
     return [];
   }
 
   return [
     {
-      label: "Объекты в базе",
+      label: "Записи в системе",
       value: formatCompactNumber(summary.value.totalRecords),
-      hint: `Закупки: ${formatCompactNumber(summary.value.totalProcurements)}`
+      hint: `Закупок в рабочем реестре: ${formatCompactNumber(summary.value.totalProcurements)}`
     },
     {
       label: "Активные источники",
       value: formatNumber(summary.value.activeSources),
-      hint: "Источники, участвующие в регулярном контуре сбора"
+      hint: "Контуры, которые участвуют в регулярном сборе"
     },
     {
       label: "Запуски за 24 часа",
       value: formatNumber(summary.value.runsLast24h),
-      hint: "Последняя суточная активность системы"
+      hint: "Свежая активность парсеров и фоновых процессов"
     },
     {
       label: "Готовые отчёты",
-      value: formatNumber(reportsData.reports.value.filter((item) => item.status === "READY").length),
+      value: formatNumber(readyReportsCount.value),
       hint: `Последнее обновление данных: ${formatDateTime(summary.value.lastUpdatedAt)}`
     }
   ];
@@ -85,12 +96,12 @@ const analyticsCards = computed(() => {
     {
       label: "Просроченные закупки",
       value: formatNumber(analytics.value.overdueCount),
-      hint: "Точки, требующие немедленного разбора"
+      hint: "Позиции, где срок уже прошёл и нужен разбор"
     },
     {
-      label: "Источники под наблюдением",
+      label: "Источники под риском",
       value: formatNumber(analytics.value.atRiskSources),
-      hint: "Есть ограничения по свежести или качеству данных"
+      hint: "Есть просадка по свежести, качеству или стабильности"
     },
     {
       label: "Эффективность публикации",
@@ -100,36 +111,203 @@ const analyticsCards = computed(() => {
   ];
 });
 
-const collectionSignals = computed(() => {
+const roleSummary = computed(() => {
+  if (role.value === "ANALYST") {
+    return "Экран собран для аналитика: сначала общая картина потока, затем расшифровка по источникам и оперативный список закупок.";
+  }
+
+  if (role.value === "DEVELOPER") {
+    return "Экран разделён на бизнес-слой и инженерный слой, чтобы метрики и технические инциденты не смешивались между собой.";
+  }
+
+  if (role.value === "ADMIN") {
+    return "Сначала видна понятная картина закупочного потока, ниже вынесен технический контур для контроля парсеров и runtime.";
+  }
+
+  return "Главный рабочий экран с понятной структурой потока, свежестью данных и быстрыми переходами.";
+});
+
+const roleBadges = computed(() => {
+  const items = ["Закупочный поток"];
+
+  if (canViewAnalytics.value) {
+    items.push("Аналитика");
+  }
+
+  if (canViewReports.value) {
+    items.push("Отчёты");
+  }
+
+  if (canViewScraperOverview.value) {
+    items.push("Инженерный контур");
+  }
+
+  return items;
+});
+
+const dashboardGuide = computed(() => {
   const recentRuns = summary.value?.recentSourceRuns ?? [];
   const degradedRuns = recentRuns.filter((item) => item.status === "FAILED" || item.status === "PARTIAL").length;
   const runningRuns = recentRuns.filter((item) => item.status === "RUNNING").length;
-  const pendingReports = reportsData.reports.value.filter((item) => item.status !== "READY").length;
 
   return [
     {
-      title: "Контур сбора",
+      title: "Сначала смотри на верхние карточки",
+      text: "Они показывают общий объём базы, активность контуров и свежесть данных, без ухода в технические детали."
+    },
+    {
+      title: "Диаграммы ниже отвечают на два вопроса",
+      text: "Где сосредоточен поток по источникам и как он распределён по статусам и времени."
+    },
+    {
+      title: "Состояние контура сейчас",
       text:
         runningRuns > 0
-          ? `Сейчас выполняются ${formatNumber(runningRuns)} запуска, данные продолжают поступать в систему.`
+          ? `Сейчас выполняются ${formatNumber(runningRuns)} запуска, поток продолжает обновляться.`
           : degradedRuns > 0
-            ? `По части контуров ведутся работы. Подробные технические ошибки доступны разработчику и администратору.`
-            : "Сбор идёт по расписанию, критичных отклонений в аналитическом контуре не видно."
-    },
-    {
-      title: "Источники в зоне внимания",
-      text: analytics.value
-        ? `${formatNumber(analytics.value.atRiskSources)} источников требуют наблюдения по свежести или качеству потока.`
-        : "Аналитический слой ещё загружается."
-    },
-    {
-      title: "Отчётный контур",
-      text:
-        pendingReports > 0
-          ? `${formatNumber(pendingReports)} отчётов ещё не готовы и будут пересчитаны после обновления данных.`
-          : "Аналитические отчёты готовы к работе и доступны для формирования."
+            ? `Есть ${formatNumber(degradedRuns)} проблемных запуска в недавнем окне, это уже вынесено в инженерный слой ниже.`
+            : "Критичных отклонений в последних прогонах не видно."
     }
   ];
+});
+
+const sourceDistributionItems = computed(() =>
+  [...(summary.value?.bySource ?? [])]
+    .sort((left, right) => right.count - left.count)
+    .slice(0, 6)
+    .map((item) => ({
+      label: item.source,
+      value: item.count,
+      valueLabel: formatCompactNumber(item.count),
+      note: "Записей в текущем контуре",
+      accent: "primary" as const
+    }))
+);
+
+const statusDistributionSegments = computed(() =>
+  (summary.value?.procurementsByStatus ?? []).map((item) => ({
+    label: formatEnumLabel(item.status),
+    value: item.count,
+    valueLabel: formatNumber(item.count),
+    accent: statusAccent(item.status)
+  }))
+);
+
+const runStatusSegments = computed(() => {
+  const counters = new Map<string, number>();
+
+  for (const item of summary.value?.recentSourceRuns ?? []) {
+    counters.set(item.status, (counters.get(item.status) ?? 0) + 1);
+  }
+
+  return Array.from(counters.entries()).map(([status, count]) => ({
+    label: formatEnumLabel(status),
+    value: count,
+    valueLabel: formatNumber(count),
+    accent: runAccent(status)
+  }));
+});
+
+const timelineItems = computed(() =>
+  (summary.value?.procurementsOverTime ?? []).slice(-8).map((item) => ({
+    label: formatDate(item.date),
+    shortLabel: shortDateFormatter.format(new Date(item.date)),
+    value: item.count,
+    valueLabel: formatNumber(item.count),
+    accent: "primary" as const
+  }))
+);
+
+const nppRecentProcurements = computed(() =>
+  (summary.value?.recentProcurements ?? []).filter((item) => procurementFocusLabel(item.rawPayload))
+);
+
+const nppFocusCards = computed(() => {
+  const items = nppRecentProcurements.value;
+  const totalAmount = items.reduce((sum, item) => sum + (item.amount ?? 0), 0);
+  const stations = new Set(
+    items.map((item) => procurementFocusLabel(item.rawPayload)).filter(Boolean)
+  );
+
+  return [
+    {
+      label: "Свежие закупки для АЭС",
+      value: formatNumber(items.length),
+      hint: "Собраны из последних обновлённых записей дашборда"
+    },
+    {
+      label: "Станции в фокусе",
+      value: formatNumber(stations.size),
+      hint: "Сколько разных АЭС уже видно в свежем окне"
+    },
+    {
+      label: "Сумма по атомному окну",
+      value: formatCurrency(totalAmount, "RUB"),
+      hint: "Только по свежим атомным закупкам из верхнего списка"
+    }
+  ];
+});
+
+const nppStationItems = computed(() => {
+  const counters = new Map<string, number>();
+
+  for (const item of nppRecentProcurements.value) {
+    const station = procurementFocusLabel(item.rawPayload);
+    if (!station) {
+      continue;
+    }
+
+    counters.set(station, (counters.get(station) ?? 0) + 1);
+  }
+
+  return Array.from(counters.entries())
+    .sort((left, right) => right[1] - left[1])
+    .map(([station, count]) => ({
+      label: station,
+      value: count,
+      valueLabel: formatNumber(count),
+      note: "Свежих закупок в окне дашборда",
+      accent: "primary" as const
+    }));
+});
+
+const recentReports = computed(() => reportsData.reports.value.slice(0, 4));
+
+const sourceFocusItems = computed(() =>
+  (summary.value?.sourcesSummary ?? []).slice(0, 4).map((item) => ({
+    title: item.name,
+    eyebrow: item.source,
+    status: item.isActive ? "Активен" : "Отключён",
+    accent: item.isActive ? ("success" as const) : ("destructive" as const),
+    lines: [
+      `Записей: ${formatNumber(item.recordCount)}`,
+      `Закупок: ${formatNumber(item.procurementCount)}`,
+      `Запусков: ${formatNumber(item.runCount)}`,
+      `Последний запуск: ${formatDateTime(item.lastRunAt)}`
+    ]
+  }))
+);
+
+const reportSignals = computed(() => {
+  if (!canViewReports.value) {
+    return [];
+  }
+
+  if (recentReports.value.length === 0) {
+    return [
+      {
+        title: "Отчёты пока не сформированы",
+        text: "После первой генерации здесь появятся сценарии с быстрым переходом в детальную аналитику."
+      }
+    ];
+  }
+
+  return recentReports.value.map((report) => ({
+    id: report.id,
+    title: report.name,
+    text: report.description || "Описание отчёта пока не задано.",
+    status: report.status
+  }));
 });
 
 const runtimeCards = computed(() => {
@@ -145,7 +323,7 @@ const runtimeCards = computed(() => {
     {
       label: "Проблемные источники",
       value: formatNumber(sources.filter((item) => item.attentionRequired).length),
-      hint: "Источники, требующие инженерного внимания"
+      hint: "Источники, которым уже нужно инженерное внимание"
     },
     {
       label: "Сейчас выполняются",
@@ -155,10 +333,24 @@ const runtimeCards = computed(() => {
     {
       label: "Circuit breaker",
       value: formatNumber(overview?.runtime.circuitStates.length ?? 0),
-      hint: overview?.runtime.reachable ? "Открытые контуры защиты от повторных сбоев" : "Control API недоступен"
+      hint: overview?.runtime.reachable ? "Контуры защиты от повторных сбоев" : "Control API недоступен"
     }
   ];
 });
+
+const technicalWatchItems = computed(() =>
+  [...(scraperOverview.value?.sources ?? [])]
+    .filter((item) => item.attentionRequired)
+    .sort((left, right) => right.failedRuns - left.failedRuns || left.successRate - right.successRate)
+    .slice(0, 6)
+    .map((item) => ({
+      label: item.sourceName,
+      value: Math.max(item.failedRuns, 1),
+      valueLabel: `${formatPercent(item.successRate)} успех`,
+      note: item.attentionReason,
+      accent: item.riskLevel === "CRITICAL" ? ("danger" as const) : ("warning" as const)
+    }))
+);
 
 const technicalIncidents = computed(() =>
   (summary.value?.recentSourceRuns ?? [])
@@ -172,23 +364,49 @@ const technicalIncidents = computed(() =>
     }))
 );
 
-const recentReports = computed(() => reportsData.reports.value.slice(0, 5));
+function shortDate(value: string) {
+  return shortDateFormatter.format(new Date(value));
+}
 
-const dashboardDescription = computed(() => {
-  if (role.value === "ANALYST") {
-    return "Аналитический контур с закупками, бизнес-метриками и отчётами без технических деталей парсеров.";
+function statusAccent(value?: string | null) {
+  const normalized = (value ?? "").toUpperCase();
+
+  if (normalized === "ACTIVE") {
+    return "success" as const;
   }
 
-  if (role.value === "DEVELOPER") {
-    return "Инженерный контур с runtime-состоянием парсеров, инцидентами и техническими отчётами.";
+  if (normalized === "DRAFT" || normalized === "CLOSED") {
+    return "warning" as const;
   }
 
-  if (role.value === "ADMIN") {
-    return "Полный контур управления: аналитика, техническое состояние парсеров и административный доступ.";
+  if (normalized === "ARCHIVED") {
+    return "danger" as const;
   }
 
-  return "Базовый рабочий экран пользователя системы.";
-});
+  return "primary" as const;
+}
+
+function runAccent(value?: string | null) {
+  const normalized = (value ?? "").toUpperCase();
+
+  if (normalized === "SUCCESS") {
+    return "success" as const;
+  }
+
+  if (normalized === "RUNNING" || normalized === "PENDING" || normalized === "PARTIAL") {
+    return "warning" as const;
+  }
+
+  if (normalized === "FAILED") {
+    return "danger" as const;
+  }
+
+  return "muted" as const;
+}
+
+function procurementFocusLabel(rawPayload?: Record<string, unknown> | null) {
+  return getProcurementNppFocus(rawPayload);
+}
 
 async function reload() {
   if (isPlainUser.value) {
@@ -220,7 +438,7 @@ onMounted(async () => {
 <template>
   <PageHeader
     title="Дашборд"
-    :description="dashboardDescription"
+    :description="roleSummary"
   >
     <template #actions>
       <div class="flex gap-2">
@@ -270,10 +488,39 @@ onMounted(async () => {
   <ErrorState v-else-if="error" :description="error" action-label="Повторить" @action="reload()" />
 
   <template v-else-if="summary">
+    <Card class="overflow-hidden border-border/70 bg-gradient-to-br from-background via-background to-muted/30">
+      <CardContent class="grid gap-6 p-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <div class="space-y-4">
+          <div class="flex flex-wrap gap-2">
+            <Badge v-for="item in roleBadges" :key="item" variant="secondary">{{ item }}</Badge>
+          </div>
+          <div class="space-y-2">
+            <p class="text-sm font-medium uppercase tracking-[0.2em] text-muted-foreground">Общая картина</p>
+            <h2 class="text-2xl font-semibold tracking-tight">Поток закупок и сбор данных разложены по темам</h2>
+            <p class="max-w-3xl text-sm leading-6 text-muted-foreground">
+              Верхний блок отвечает на вопрос “что происходит сейчас”, диаграммы ниже показывают
+              структуру и динамику, а операционные и инженерные секции уже вынесены отдельно.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+          <div
+            v-for="item in dashboardGuide"
+            :key="item.title"
+            class="rounded-3xl border border-border/70 bg-background/70 p-4 backdrop-blur"
+          >
+            <p class="text-sm font-semibold">{{ item.title }}</p>
+            <p class="mt-2 text-sm leading-6 text-muted-foreground">{{ item.text }}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
     <template v-if="canViewAnalytics">
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          v-for="card in businessCards"
+          v-for="card in overviewCards"
           :key="card.label"
           :label="card.label"
           :value="card.value"
@@ -291,56 +538,140 @@ onMounted(async () => {
         />
       </div>
 
-      <div class="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+      <div class="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Контур мониторинга</CardTitle>
+            <CardTitle>Статусы потока</CardTitle>
             <CardDescription>
-              Состояние сбора и отчётности в безопасной для аналитика форме без технических ошибок парсеров.
+              Слева видно распределение закупок по жизненному циклу, справа — в каком состоянии были последние прогоны.
             </CardDescription>
           </CardHeader>
-          <CardContent class="space-y-3">
-            <div
-              v-for="signal in collectionSignals"
-              :key="signal.title"
-              class="rounded-xl border bg-muted/30 p-4"
-            >
-              <p class="text-sm font-medium">{{ signal.title }}</p>
-              <p class="mt-1 text-sm text-muted-foreground">{{ signal.text }}</p>
+          <CardContent class="space-y-6">
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <p class="text-sm font-medium">Закупки в базе</p>
+                <p class="text-sm text-muted-foreground">{{ formatNumber(summary.totalProcurements) }}</p>
+              </div>
+              <MetricStackBar :segments="statusDistributionSegments" />
+            </div>
+
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <p class="text-sm font-medium">Последние source runs</p>
+                <p class="text-sm text-muted-foreground">{{ formatNumber(summary.recentSourceRuns.length) }}</p>
+              </div>
+              <MetricStackBar :segments="runStatusSegments" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Последние отчёты</CardTitle>
-            <CardDescription>Быстрый доступ к актуальным аналитическим сценариям.</CardDescription>
+            <CardTitle>Где сосредоточен поток</CardTitle>
+            <CardDescription>
+              Быстрая диаграмма по источникам помогает увидеть, кто формирует основной объём и где смещение становится заметным.
+            </CardDescription>
           </CardHeader>
-          <CardContent class="space-y-3">
-            <div
-              v-for="report in recentReports"
-              :key="report.id"
-              class="rounded-xl border bg-muted/30 p-4"
-            >
-              <div class="flex items-center justify-between gap-2">
-                <NuxtLink :to="`/reports/${report.id}`" class="text-sm font-medium text-primary hover:underline">
-                  {{ report.name }}
-                </NuxtLink>
-                <Badge :variant="badgeVariant(report.status)">{{ formatEnumLabel(report.status) }}</Badge>
-              </div>
-              <p class="mt-2 text-sm text-muted-foreground">
-                {{ report.description || "Описание отчёта пока не задано." }}
+          <CardContent class="space-y-5">
+            <MetricBarList :items="sourceDistributionItems" />
+
+            <div class="rounded-3xl border bg-muted/15 p-4">
+              <p class="text-sm font-medium">Как читать эту диаграмму</p>
+              <p class="mt-2 text-sm leading-6 text-muted-foreground">
+                Если один источник начинает резко доминировать или, наоборот, исчезает из верхней части списка,
+                это обычно первый сигнал для проверки свежести данных и контуров публикации.
               </p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div class="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
+      <Card>
+        <CardHeader>
+          <CardTitle>Динамика обновления</CardTitle>
+          <CardDescription>
+            Показывает, как менялся объём обновлённых закупок за последние точки временного ряда.
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <MetricColumnChart :items="timelineItems" />
+          <p class="text-sm leading-6 text-muted-foreground">
+            Диаграмма помогает быстро отличить ровный поток от провалов. Если столбцы заметно падают подряд,
+            это уже повод проверить конкретные источники и последние прогоны.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card v-if="nppRecentProcurements.length > 0">
+        <CardHeader>
+          <CardTitle>Закупки для АЭС России</CardTitle>
+          <CardDescription>
+            Отдельный атомный слой показывает не только юридического заказчика, но и станцию назначения, если она выделена из карточки ЕИС.
+          </CardDescription>
+        </CardHeader>
+        <CardContent class="space-y-6">
+          <div class="grid gap-4 md:grid-cols-3">
+            <StatCard
+              v-for="card in nppFocusCards"
+              :key="card.label"
+              :label="card.label"
+              :value="card.value"
+              :hint="card.hint"
+            />
+          </div>
+
+          <div class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+            <Card class="border-dashed">
+              <CardHeader>
+                <CardTitle class="text-base">Станции в текущем окне</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MetricBarList :items="nppStationItems" />
+              </CardContent>
+            </Card>
+
+            <Card class="border-dashed">
+              <CardHeader>
+                <CardTitle class="text-base">Свежие атомные закупки</CardTitle>
+              </CardHeader>
+              <CardContent class="space-y-3">
+                <div
+                  v-for="item in nppRecentProcurements"
+                  :key="item.id"
+                  class="rounded-2xl border border-border/70 bg-muted/15 p-4"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="space-y-1">
+                      <p class="text-sm font-semibold">{{ item.title }}</p>
+                      <p class="text-xs font-medium text-primary">
+                        Цель АЭС: {{ procurementFocusLabel(item.rawPayload) }}
+                      </p>
+                      <p class="text-sm text-muted-foreground">
+                        Заказчик: {{ item.customer || "Не указан" }}
+                      </p>
+                    </div>
+                    <Badge :variant="badgeVariant(item.status)">{{ formatEnumLabel(item.status) }}</Badge>
+                  </div>
+                  <div class="mt-3 flex flex-wrap gap-3 text-sm text-muted-foreground">
+                    <span>{{ item.externalId }}</span>
+                    <span>{{ formatCurrency(item.amount, item.currency) }}</span>
+                    <span>{{ formatDateTime(item.updatedAt) }}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div class="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Последние закупки</CardTitle>
-            <CardDescription>Свежие записи, доступные для перехода в карточку закупки.</CardDescription>
+            <CardTitle>Оперативный список закупок</CardTitle>
+            <CardDescription>
+              Здесь только свежие записи, чтобы не смешивать “общую картину” и “что открыть прямо сейчас”.
+              Для атомной темы отдельно выводится станция назначения, если она распознана в данных ЕИС.
+            </CardDescription>
           </CardHeader>
           <CardContent class="px-0">
             <Table>
@@ -364,6 +695,12 @@ onMounted(async () => {
                     <div class="space-y-1">
                       <p class="font-medium">{{ item.title }}</p>
                       <p class="text-sm text-muted-foreground">{{ item.externalId }}</p>
+                      <p
+                        v-if="procurementFocusLabel(item.rawPayload)"
+                        class="text-xs font-medium text-primary"
+                      >
+                        Цель АЭС: {{ procurementFocusLabel(item.rawPayload) }}
+                      </p>
                     </div>
                   </TableCell>
                   <TableCell>{{ item.source }}</TableCell>
@@ -380,37 +717,78 @@ onMounted(async () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Источники в мониторинге</CardTitle>
-            <CardDescription>Краткий слой по активности и свежести каналов.</CardDescription>
+            <CardTitle>Фокус по источникам</CardTitle>
+            <CardDescription>
+              Небольшой блок для чтения свежести и активности без перехода в отдельный раздел источников.
+            </CardDescription>
           </CardHeader>
           <CardContent class="space-y-3">
             <div
-              v-for="source in summary.sourcesSummary.slice(0, 4)"
-              :key="source.source"
-              class="rounded-xl border bg-muted/30 p-4"
+              v-for="item in sourceFocusItems"
+              :key="item.eyebrow"
+              class="rounded-3xl border bg-muted/15 p-4"
             >
-              <div class="flex items-center justify-between gap-2">
+              <div class="flex items-start justify-between gap-3">
                 <div>
-                  <p class="text-sm font-medium">{{ source.name }}</p>
-                  <p class="text-xs text-muted-foreground">{{ source.source }}</p>
+                  <p class="text-sm font-semibold">{{ item.title }}</p>
+                  <p class="text-xs text-muted-foreground">{{ item.eyebrow }}</p>
                 </div>
-                <Badge :variant="source.isActive ? 'success' : 'destructive'">
-                  {{ source.isActive ? "Активен" : "Отключён" }}
-                </Badge>
+                <Badge :variant="item.accent">{{ item.status }}</Badge>
               </div>
-              <div class="mt-3 grid gap-1 text-sm text-muted-foreground">
-                <p>Записей: {{ formatNumber(source.recordCount) }}</p>
-                <p>Закупок: {{ formatNumber(source.procurementCount) }}</p>
-                <p>Запусков: {{ formatNumber(source.runCount) }}</p>
-                <p>Последний запуск: {{ formatDateTime(source.lastRunAt) }}</p>
+              <div class="mt-3 space-y-1 text-sm text-muted-foreground">
+                <p v-for="line in item.lines" :key="line">{{ line }}</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      <Card v-if="canViewReports">
+        <CardHeader>
+          <CardTitle>Отчётный слой</CardTitle>
+          <CardDescription>
+            Отчёты вынесены в отдельный тематический блок, чтобы не перемешивать их с закупками и техническими метриками.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div class="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+            <div
+              v-for="report in reportSignals"
+              :key="'id' in report ? report.id : report.title"
+              class="rounded-3xl border bg-muted/15 p-4"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="space-y-2">
+                  <NuxtLink
+                    v-if="'id' in report"
+                    :to="`/reports/${report.id}`"
+                    class="text-sm font-semibold text-primary hover:underline"
+                  >
+                    {{ report.title }}
+                  </NuxtLink>
+                  <p v-else class="text-sm font-semibold">{{ report.title }}</p>
+                  <p class="text-sm leading-6 text-muted-foreground">{{ report.text }}</p>
+                </div>
+                <Badge v-if="'status' in report" :variant="badgeVariant(report.status)">
+                  {{ formatEnumLabel(report.status) }}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </template>
 
     <template v-if="canViewScraperOverview && scraperOverview">
+      <Card class="border-border/70 bg-gradient-to-br from-background via-background to-muted/20">
+        <CardHeader>
+          <CardTitle>Инженерный контур</CardTitle>
+          <CardDescription>
+            Технический слой вынесен отдельно: сначала runtime и зоны внимания, затем инциденты и детальная таблица источников.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           v-for="card in runtimeCards"
@@ -421,12 +799,12 @@ onMounted(async () => {
         />
       </div>
 
-      <div class="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+      <div class="grid gap-4 xl:grid-cols-[0.88fr_1.12fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Runtime-контур парсеров</CardTitle>
+            <CardTitle>Runtime и ограничения</CardTitle>
             <CardDescription>
-              Разработчик и администратор видят техническое состояние scraper-service и текущие ограничения.
+              Здесь виден текущий статус control API, применённое расписание и активные контуры защиты от сбоев.
             </CardDescription>
           </CardHeader>
           <CardContent class="space-y-4">
@@ -465,7 +843,7 @@ onMounted(async () => {
 
             <div
               v-if="scraperOverview.runtime.circuitStates.length > 0"
-              class="space-y-3 rounded-xl border bg-muted/20 p-4"
+              class="space-y-3 rounded-3xl border bg-muted/15 p-4"
             >
               <p class="font-medium">Источники в circuit breaker</p>
               <div
@@ -484,26 +862,22 @@ onMounted(async () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Технические инциденты</CardTitle>
+            <CardTitle>Где требуется реакция</CardTitle>
             <CardDescription>
-              Полный инженерный слой с кодами ошибок и деталями последних проблемных прогонов.
+              Быстрый визуальный список проблемных источников. Сначала видны причины внимания, без чтения длинной таблицы.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <EmptyState
-              v-if="technicalIncidents.length === 0"
-              title="Критичных инцидентов нет"
-              description="Последние запуски парсеров выглядят стабильно."
+          <CardContent class="space-y-5">
+            <MetricBarList
+              :items="technicalWatchItems"
+              empty-text="Сейчас нет источников, которые требуют отдельного инженерного внимания."
             />
-            <div v-else class="space-y-3">
-              <div
-                v-for="incident in technicalIncidents"
-                :key="incident.title"
-                class="rounded-xl border bg-muted/30 p-4"
-              >
-                <p class="text-sm font-medium">{{ incident.title }}</p>
-                <p class="mt-1 text-sm text-muted-foreground">{{ incident.text }}</p>
-              </div>
+
+            <div class="rounded-3xl border bg-muted/15 p-4">
+              <p class="text-sm font-medium">Как использовать этот блок</p>
+              <p class="mt-2 text-sm leading-6 text-muted-foreground">
+                Чем выше карточка в списке, тем сильнее сочетание неуспехов, публикационных потерь и внимания со стороны runtime.
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -511,9 +885,35 @@ onMounted(async () => {
 
       <Card>
         <CardHeader>
+          <CardTitle>Последние технические инциденты</CardTitle>
+          <CardDescription>
+            Отдельный список, чтобы ошибки не смешивались с аналитическими блоками и оперативным списком закупок.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <EmptyState
+            v-if="technicalIncidents.length === 0"
+            title="Критичных инцидентов нет"
+            description="Последние запуски парсеров выглядят стабильно."
+          />
+          <div v-else class="grid gap-4 lg:grid-cols-2">
+            <div
+              v-for="incident in technicalIncidents"
+              :key="incident.title"
+              class="rounded-3xl border bg-muted/15 p-4"
+            >
+              <p class="text-sm font-semibold">{{ incident.title }}</p>
+              <p class="mt-2 text-sm leading-6 text-muted-foreground">{{ incident.text }}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>Источники под инженерным наблюдением</CardTitle>
           <CardDescription>
-            Здесь уже доступны attention reasons, риск, публикация и последние технические сигналы.
+            Детальная таблица остаётся на месте, но теперь идёт после визуального приоритезационного слоя.
           </CardDescription>
         </CardHeader>
         <CardContent class="px-0">

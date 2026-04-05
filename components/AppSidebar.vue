@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   PlaySquare,
   Radar,
-  ScanSearch,
   UserCog
 } from "lucide-vue-next";
 import type { Component } from "vue";
@@ -20,7 +19,6 @@ const sidebar = useSidebar();
 
 const icons: Record<string, Component> = {
   "/analytics": Activity,
-  "/collectors": ScanSearch,
   "/dashboard": LayoutDashboard,
   "/jobs": Radar,
   "/procurements": FileSearch,
