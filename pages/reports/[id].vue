@@ -11,12 +11,16 @@ const detail = useReportDetail();
 const reportTypeLabels: Record<string, string> = {
   "daily-overview": "Ежедневный обзор",
   "supplier-risk": "Риски поставщиков",
+  "supplier-due-diligence": "Добросовестность поставщиков",
+  "npp-station-orders": "Закупки по АЭС",
   "pipeline-incident": "Инциденты пайплайна"
 };
 
 const reportTypeDescriptions: Record<string, string> = {
   "daily-overview": "Сводка по закупкам, объёму данных, дедлайнам и активности источников.",
   "supplier-risk": "Отчёт про концентрацию, риск-сигналы и закупки, требующие внимания.",
+  "supplier-due-diligence": "Отдельная проверка поставщиков по РНП, Федресурсу, ФНС и закупочной активности.",
+  "npp-station-orders": "Подробный срез по каждой АЭС: что заказывала станция, когда и в каком источнике это найдено.",
   "pipeline-incident": "Срез по качеству запусков, публикации и сбоям в сборе."
 };
 
@@ -31,6 +35,8 @@ const description = computed(() => {
 
 const metricCards = computed(() => detail.item.value?.metrics ?? []);
 const scoreCards = computed(() => detail.item.value?.scores ?? []);
+const hasSupplierDueDiligence = computed(() => (detail.item.value?.supplierDueDiligence.length ?? 0) > 0);
+const hasNppStationOrders = computed(() => (detail.item.value?.nppStationOrders.length ?? 0) > 0);
 const deadlineMax = computed(() =>
   Math.max(...(detail.item.value?.deadlinePressure.map((item) => item.count) ?? [1]), 1)
 );
@@ -108,6 +114,30 @@ function riskLabel(level?: string | null) {
   }
 
   return "Стабильно";
+}
+
+function integrityBadgeVariant(score?: number | null) {
+  if ((score ?? 0) < 45) {
+    return "destructive" as const;
+  }
+
+  if ((score ?? 0) < 70) {
+    return "warning" as const;
+  }
+
+  return "success" as const;
+}
+
+function integrityLabel(score?: number | null) {
+  if ((score ?? 0) < 45) {
+    return "Высокий риск";
+  }
+
+  if ((score ?? 0) < 70) {
+    return "Нужна проверка";
+  }
+
+  return "Нормально";
 }
 
 watch(
@@ -402,6 +432,144 @@ watchEffect(() => {
         </CardContent>
       </Card>
     </div>
+
+    <Card v-if="hasSupplierDueDiligence">
+      <CardHeader>
+        <CardTitle>Проверка поставщиков</CardTitle>
+        <CardDescription>
+          Отдельная витрина по благонадёжности: закупочная активность, реквизиты, риск-сигналы и РНП.
+        </CardDescription>
+      </CardHeader>
+      <CardContent class="px-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Поставщик</TableHead>
+              <TableHead>Оценка</TableHead>
+              <TableHead>Закупки</TableHead>
+              <TableHead>Риски</TableHead>
+              <TableHead>Профиль</TableHead>
+              <TableHead>Флаги</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-for="item in detail.item.value.supplierDueDiligence" :key="`${item.supplier}-${item.taxId || item.ogrn || 'none'}`">
+              <TableCell>
+                <div class="space-y-1">
+                  <p class="font-medium">{{ item.supplier }}</p>
+                  <p class="text-sm text-muted-foreground">
+                    ИНН: {{ item.taxId || "нет" }} · ОГРН: {{ item.ogrn || "нет" }}
+                  </p>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div class="space-y-1">
+                  <p class="font-medium">{{ formatNumber(item.integrityScore) }}/100</p>
+                  <Badge :variant="integrityBadgeVariant(item.integrityScore)">
+                    {{ integrityLabel(item.integrityScore) }}
+                  </Badge>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div class="space-y-1 text-sm">
+                  <p>{{ formatNumber(item.procurementCount) }} всего · {{ formatNumber(item.activeProcurements) }} активных</p>
+                  <p class="text-muted-foreground">
+                    {{ formatCurrency(item.totalAmount, "RUB") }} · {{ formatDateTime(item.lastProcurementAt) }}
+                  </p>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div class="space-y-1 text-sm">
+                  <p>Федресурс: {{ formatNumber(item.activeRiskSignalsCount) }}/{{ formatNumber(item.riskSignalsCount) }}</p>
+                  <p>РНП: {{ formatNumber(item.activeRnpEntriesCount) }}/{{ formatNumber(item.rnpEntriesCount) }}</p>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div class="space-y-1 text-sm">
+                  <p>{{ item.companyStatus || "Профиль не найден" }}</p>
+                  <p class="text-muted-foreground">
+                    {{ item.region || "Регион не указан" }}
+                    <span v-if="item.registrationDate"> · {{ formatDateTime(item.registrationDate) }}</span>
+                  </p>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div class="flex flex-wrap gap-2">
+                  <Badge
+                    v-for="flag in item.flags"
+                    :key="flag"
+                    variant="outline"
+                  >
+                    {{ flag }}
+                  </Badge>
+                  <span v-if="item.flags.length === 0" class="text-sm text-muted-foreground">Явных флагов нет</span>
+                </div>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+
+    <Card v-if="hasNppStationOrders">
+      <CardHeader>
+        <CardTitle>Что заказывали АЭС</CardTitle>
+        <CardDescription>
+          По каждой станции видно количество заказов, договорный слой и список найденных закупок с датами.
+        </CardDescription>
+      </CardHeader>
+      <CardContent class="space-y-6">
+        <div
+          v-for="station in detail.item.value.nppStationOrders"
+          :key="station.station"
+          class="rounded-2xl border bg-muted/10 p-4"
+        >
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="space-y-1">
+              <p class="text-base font-semibold">{{ station.station }}</p>
+              <p class="text-sm text-muted-foreground">
+                {{ formatNumber(station.procurementCount) }} записей ·
+                {{ formatNumber(station.contractCount) }} договоров ·
+                {{ formatCurrency(station.totalAmount, "RUB") }}
+              </p>
+            </div>
+            <div class="text-sm text-muted-foreground">
+              {{ formatDateTime(station.firstPublishedAt) }} - {{ formatDateTime(station.lastPublishedAt) }}
+            </div>
+          </div>
+
+          <div class="mt-4 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Что заказывали</TableHead>
+                  <TableHead>Заказчик</TableHead>
+                  <TableHead>Источник</TableHead>
+                  <TableHead>Сумма</TableHead>
+                  <TableHead>Когда</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow v-for="order in station.orders" :key="order.procurementId">
+                  <TableCell>
+                    <div class="space-y-1">
+                      <NuxtLink :to="`/procurements/${order.procurementId}`" class="font-medium text-primary hover:underline">
+                        {{ order.title }}
+                      </NuxtLink>
+                      <p class="text-sm text-muted-foreground">{{ order.externalId }}</p>
+                    </div>
+                  </TableCell>
+                  <TableCell>{{ order.customer || "Не указан" }}</TableCell>
+                  <TableCell>{{ order.source }}</TableCell>
+                  <TableCell>{{ formatCurrency(order.amount, order.currency) }}</TableCell>
+                  <TableCell>{{ formatDateTime(order.publishedAt) }}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
 
     <div class="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
       <Card>

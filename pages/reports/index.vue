@@ -15,23 +15,29 @@ const reports = useReportsData();
 const reportTypeLabels: Record<string, string> = {
   "daily-overview": "Ежедневный обзор",
   "supplier-risk": "Риски поставщиков",
+  "supplier-due-diligence": "Добросовестность поставщиков",
+  "npp-station-orders": "Закупки по АЭС",
   "pipeline-incident": "Инциденты пайплайна"
 };
 
 const reportTypeDescriptions: Record<string, string> = {
   "daily-overview": "Сводка по закупкам, дедлайнам, публикациям и свежести данных.",
   "supplier-risk": "Сигналы по поставщикам, концентрации и срочным закупкам.",
+  "supplier-due-diligence": "Проверка поставщиков по ФНС, Федресурсу, РНП и закупочной активности.",
+  "npp-station-orders": "Что заказывала каждая АЭС, когда публиковались закупки и где уже есть договорный след.",
   "pipeline-incident": "Проблемные запуски, качество публикации и слабые места в конвейере."
 };
 
 const reportTypeCadences: Record<string, string> = {
   "daily-overview": "Каждые 12 часов",
   "supplier-risk": "Каждые 24 часа",
+  "supplier-due-diligence": "Каждые 24 часа",
+  "npp-station-orders": "Каждые 12 часов",
   "pipeline-incident": "Каждые 6 часов"
 };
 
 const roleVisibleReportTypes: Record<string, string[]> = {
-  ANALYST: ["daily-overview", "supplier-risk"],
+  ANALYST: ["daily-overview", "supplier-risk", "supplier-due-diligence", "npp-station-orders"],
   DEVELOPER: ["pipeline-incident"],
   ADMIN: Object.keys(reportTypeLabels)
 };

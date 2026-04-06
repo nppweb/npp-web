@@ -504,6 +504,48 @@ export const REPORT_QUERY = gql`
         totalAmount
         sharePercent
       }
+      supplierDueDiligence {
+        supplier
+        taxId
+        ogrn
+        procurementCount
+        activeProcurements
+        totalAmount
+        lastProcurementAt
+        companyStatus
+        registrationDate
+        region
+        okved
+        liquidationMark
+        riskSignalsCount
+        activeRiskSignalsCount
+        rnpEntriesCount
+        activeRnpEntriesCount
+        latestRiskAt
+        integrityScore
+        flags
+      }
+      nppStationOrders {
+        station
+        procurementCount
+        contractCount
+        totalAmount
+        firstPublishedAt
+        lastPublishedAt
+        orders {
+          procurementId
+          externalId
+          title
+          customer
+          supplier
+          source
+          amount
+          currency
+          status
+          publishedAt
+          sourceUrl
+        }
+      }
       recentSourceRuns {
         id
         runKey

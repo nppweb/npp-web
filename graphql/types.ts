@@ -329,6 +329,52 @@ export type ReportSourceContributionItem = {
   sharePercent: number;
 };
 
+export type ReportSupplierDueDiligenceItem = {
+  supplier: string;
+  taxId?: string | null;
+  ogrn?: string | null;
+  procurementCount: number;
+  activeProcurements: number;
+  totalAmount: number;
+  lastProcurementAt?: string | null;
+  companyStatus?: string | null;
+  registrationDate?: string | null;
+  region?: string | null;
+  okved?: string | null;
+  liquidationMark?: boolean | null;
+  riskSignalsCount: number;
+  activeRiskSignalsCount: number;
+  rnpEntriesCount: number;
+  activeRnpEntriesCount: number;
+  latestRiskAt?: string | null;
+  integrityScore: number;
+  flags: string[];
+};
+
+export type ReportNppStationOrderEntry = {
+  procurementId: string;
+  externalId: string;
+  title: string;
+  customer?: string | null;
+  supplier?: string | null;
+  source: string;
+  amount?: number | null;
+  currency?: string | null;
+  status: string;
+  publishedAt?: string | null;
+  sourceUrl?: string | null;
+};
+
+export type ReportNppStationOrderItem = {
+  station: string;
+  procurementCount: number;
+  contractCount: number;
+  totalAmount: number;
+  firstPublishedAt?: string | null;
+  lastPublishedAt?: string | null;
+  orders: ReportNppStationOrderEntry[];
+};
+
 export type ReportDetail = {
   id: string;
   name: string;
@@ -347,6 +393,8 @@ export type ReportDetail = {
   sourceContribution: ReportSourceContributionItem[];
   sourceHealth: AnalyticsSourceHealthItem[];
   supplierExposure: AnalyticsSupplierExposureItem[];
+  supplierDueDiligence: ReportSupplierDueDiligenceItem[];
+  nppStationOrders: ReportNppStationOrderItem[];
   recentSourceRuns: SourceRun[];
   recentProcurements: Procurement[];
 };
