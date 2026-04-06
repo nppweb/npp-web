@@ -57,8 +57,8 @@ function accentClass(accent?: MetricBarItem["accent"]) {
     >
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <p class="truncate text-sm font-medium">{{ item.label }}</p>
-          <p v-if="item.note" class="text-xs text-muted-foreground">{{ item.note }}</p>
+          <p class="break-words text-sm font-medium leading-5">{{ item.label }}</p>
+          <p v-if="item.note" class="break-words text-xs leading-5 text-muted-foreground">{{ item.note }}</p>
         </div>
         <p class="shrink-0 text-sm font-semibold text-foreground">
           {{ item.valueLabel ?? formatNumber(item.value) }}

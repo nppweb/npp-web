@@ -172,8 +172,8 @@ onMounted(async () => {
   </PageHeader>
 
   <Card class="overflow-hidden border-border/70 bg-gradient-to-br from-background via-background to-muted/20">
-    <CardContent class="grid gap-6 p-6 lg:grid-cols-[1.05fr_0.95fr]">
-      <div class="space-y-3">
+    <CardContent class="grid gap-6 p-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+      <div class="min-w-0 space-y-3">
         <p class="text-sm font-medium uppercase tracking-[0.2em] text-muted-foreground">Навигация по реестру</p>
         <h2 class="text-2xl font-semibold tracking-tight">Сначала пойми выборку, потом открывай строки</h2>
         <p class="max-w-3xl text-sm leading-6 text-muted-foreground">
@@ -186,7 +186,7 @@ onMounted(async () => {
         <div
           v-for="item in listGuide"
           :key="item.title"
-          class="rounded-3xl border border-border/70 bg-background/80 p-4"
+          class="min-w-0 rounded-3xl border border-border/70 bg-background/80 p-4"
         >
           <p class="text-sm font-semibold">{{ item.title }}</p>
           <p class="mt-2 text-sm leading-6 text-muted-foreground">{{ item.text }}</p>
@@ -210,7 +210,7 @@ onMounted(async () => {
       <Badge variant="secondary">Найдено: {{ formatNumber(procurements.total.value) }}</Badge>
     </template>
 
-    <form class="grid gap-4 lg:grid-cols-[1.4fr_1fr_1fr_1fr_auto]" @submit.prevent="procurements.submitFilters()">
+    <form class="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" @submit.prevent="procurements.submitFilters()">
       <div class="space-y-2">
         <Label for="procurement-search">Поиск</Label>
         <Input
@@ -307,8 +307,8 @@ onMounted(async () => {
   />
 
   <template v-else>
-    <div class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-      <Card>
+    <div class="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      <Card class="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle>Статусы в текущей выборке</CardTitle>
           <CardDescription>
@@ -323,7 +323,7 @@ onMounted(async () => {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card class="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle>Источники на текущей странице</CardTitle>
           <CardDescription>
@@ -339,7 +339,7 @@ onMounted(async () => {
       </Card>
     </div>
 
-    <Card>
+    <Card class="min-w-0 overflow-hidden">
       <CardHeader>
         <CardTitle>Список закупок</CardTitle>
         <CardDescription>
@@ -354,7 +354,7 @@ onMounted(async () => {
       </CardContent>
       <template v-else>
         <CardContent class="px-0">
-          <Table>
+          <Table class="min-w-[880px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Закупка</TableHead>
@@ -372,25 +372,25 @@ onMounted(async () => {
                 class="cursor-pointer"
                 @click="navigateTo(`/procurements/${item.id}`)"
               >
-                <TableCell>
-                  <div class="space-y-1">
-                    <p class="font-medium">{{ item.title }}</p>
-                    <p class="text-sm text-muted-foreground">{{ item.externalId }}</p>
+                <TableCell class="max-w-[28rem]">
+                  <div class="min-w-0 space-y-1">
+                    <p class="break-words font-medium">{{ item.title }}</p>
+                    <p class="break-all text-sm text-muted-foreground">{{ item.externalId }}</p>
                     <p
                       v-if="procurementFocusLabel(item.rawPayload)"
-                      class="text-xs font-medium text-primary"
+                      class="break-words text-xs font-medium text-primary"
                     >
                       Цель АЭС: {{ procurementFocusLabel(item.rawPayload) }}
                     </p>
                   </div>
                 </TableCell>
-                <TableCell>{{ item.source }}</TableCell>
-                <TableCell>
-                  <div class="space-y-1">
-                    <p>{{ item.customer || "Не указан" }}</p>
+                <TableCell class="max-w-[12rem] break-words">{{ item.source }}</TableCell>
+                <TableCell class="max-w-[22rem]">
+                  <div class="min-w-0 space-y-1">
+                    <p class="break-words">{{ item.customer || "Не указан" }}</p>
                     <p
                       v-if="procurementFocusLabel(item.rawPayload) && item.customer"
-                      class="text-xs text-muted-foreground"
+                      class="break-words text-xs text-muted-foreground"
                     >
                       Юр. заказчик, цель закупки вынесена отдельно
                     </p>

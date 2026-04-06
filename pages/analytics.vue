@@ -325,8 +325,8 @@ onMounted(() => {
 
   <template v-else-if="summary">
     <Card class="overflow-hidden border-border/70 bg-gradient-to-br from-background via-background to-muted/25">
-      <CardContent class="grid gap-6 p-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div class="space-y-4">
+      <CardContent class="grid gap-6 p-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <div class="min-w-0 space-y-4">
           <p class="text-sm font-medium uppercase tracking-[0.2em] text-muted-foreground">Атомный контур</p>
           <div class="space-y-2">
             <h2 class="text-2xl font-semibold tracking-tight">Здесь видно не только “сколько”, но и “где у нас реально собран контур АЭС”</h2>
@@ -341,7 +341,7 @@ onMounted(() => {
           <div
             v-for="item in nppGuide"
             :key="item.title"
-            class="rounded-3xl border border-border/70 bg-background/80 p-4"
+            class="min-w-0 rounded-3xl border border-border/70 bg-background/80 p-4"
           >
             <p class="text-sm font-semibold">{{ item.title }}</p>
             <p class="mt-2 text-sm leading-6 text-muted-foreground">{{ item.text }}</p>
@@ -360,8 +360,8 @@ onMounted(() => {
       />
     </div>
 
-    <div class="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-      <Card>
+    <div class="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+      <Card class="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle>Динамика по месяцам с января 2025</CardTitle>
           <CardDescription>
@@ -376,7 +376,7 @@ onMounted(() => {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card class="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle>Покрытие по станциям</CardTitle>
           <CardDescription>
@@ -392,8 +392,8 @@ onMounted(() => {
       </Card>
     </div>
 
-    <div class="grid gap-4 xl:grid-cols-[1fr_1fr]">
-      <Card>
+    <div class="grid gap-4 xl:grid-cols-2">
+      <Card class="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle>Вклад источников в атомный поток</CardTitle>
           <CardDescription>
@@ -408,7 +408,7 @@ onMounted(() => {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card class="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle>Ключевые заказчики атомного контура</CardTitle>
           <CardDescription>
@@ -438,7 +438,7 @@ onMounted(() => {
         />
       </CardContent>
       <CardContent v-else class="px-0">
-        <Table>
+        <Table class="min-w-[720px]">
           <TableHeader>
             <TableRow>
               <TableHead>Карточка</TableHead>
@@ -450,16 +450,16 @@ onMounted(() => {
           </TableHeader>
           <TableBody>
             <TableRow v-for="item in summary.nppRecentProcurements" :key="item.id">
-              <TableCell>
-                <NuxtLink :to="`/procurements/${item.id}`" class="font-medium text-primary hover:underline">
+              <TableCell class="max-w-[28rem]">
+                <NuxtLink :to="`/procurements/${item.id}`" class="block break-words font-medium text-primary hover:underline">
                   {{ item.title }}
                 </NuxtLink>
               </TableCell>
-              <TableCell>{{ item.source }}</TableCell>
-              <TableCell>
-                <div class="space-y-1">
-                  <p>{{ item.customer || "Заказчик не указан" }}</p>
-                  <p class="text-sm text-muted-foreground">
+              <TableCell class="max-w-[12rem] break-words">{{ item.source }}</TableCell>
+              <TableCell class="max-w-[20rem]">
+                <div class="min-w-0 space-y-1">
+                  <p class="break-words">{{ item.customer || "Заказчик не указан" }}</p>
+                  <p class="break-words text-sm text-muted-foreground">
                     {{
                       procurementFocusLabel(item.rawPayload)
                         ? `Цель АЭС: ${procurementFocusLabel(item.rawPayload)}`
@@ -477,8 +477,8 @@ onMounted(() => {
     </Card>
 
     <Card class="overflow-hidden border-border/70 bg-gradient-to-br from-background via-background to-muted/25">
-      <CardContent class="grid gap-6 p-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div class="space-y-4">
+      <CardContent class="grid gap-6 p-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <div class="min-w-0 space-y-4">
           <p class="text-sm font-medium uppercase tracking-[0.2em] text-muted-foreground">Общий поток</p>
           <div class="space-y-2">
             <h2 class="text-2xl font-semibold tracking-tight">Операционный слой остаётся отдельным</h2>
@@ -493,7 +493,7 @@ onMounted(() => {
           <div
             v-for="item in analyticsGuide"
             :key="item.title"
-            class="rounded-3xl border border-border/70 bg-background/80 p-4"
+            class="min-w-0 rounded-3xl border border-border/70 bg-background/80 p-4"
           >
             <p class="text-sm font-semibold">{{ item.title }}</p>
             <p class="mt-2 text-sm leading-6 text-muted-foreground">{{ item.text }}</p>
@@ -512,8 +512,8 @@ onMounted(() => {
       />
     </div>
 
-    <div class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-      <Card>
+    <div class="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      <Card class="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle>Давление по дедлайнам</CardTitle>
           <CardDescription>
@@ -536,7 +536,7 @@ onMounted(() => {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card class="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle>Карта приоритетов</CardTitle>
           <CardDescription>
@@ -550,8 +550,8 @@ onMounted(() => {
       </Card>
     </div>
 
-    <div class="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-      <Card>
+    <div class="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+      <Card class="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle>Концентрация по поставщикам</CardTitle>
           <CardDescription>
@@ -566,7 +566,7 @@ onMounted(() => {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card class="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle>Здоровье источников</CardTitle>
           <CardDescription>
@@ -574,7 +574,7 @@ onMounted(() => {
           </CardDescription>
         </CardHeader>
         <CardContent class="px-0">
-          <Table>
+          <Table class="min-w-[760px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Источник</TableHead>
@@ -587,10 +587,10 @@ onMounted(() => {
             </TableHeader>
             <TableBody>
               <TableRow v-for="item in summary.sourceHealth" :key="item.source">
-                <TableCell>
-                  <div class="space-y-1">
-                    <p class="font-medium">{{ item.name }}</p>
-                    <p class="text-sm text-muted-foreground">{{ item.source }}</p>
+                <TableCell class="max-w-[18rem]">
+                  <div class="min-w-0 space-y-1">
+                    <p class="break-words font-medium">{{ item.name }}</p>
+                    <p class="break-words text-sm text-muted-foreground">{{ item.source }}</p>
                   </div>
                 </TableCell>
                 <TableCell>
@@ -632,7 +632,7 @@ onMounted(() => {
         />
       </CardContent>
       <CardContent v-else class="px-0">
-        <Table>
+        <Table class="min-w-[720px]">
           <TableHeader>
             <TableRow>
               <TableHead>Закупка</TableHead>
@@ -644,8 +644,8 @@ onMounted(() => {
           </TableHeader>
           <TableBody>
             <TableRow v-for="item in summary.attentionProcurements" :key="item.id">
-              <TableCell>
-                <NuxtLink :to="`/procurements/${item.id}`" class="font-medium text-primary hover:underline">
+              <TableCell class="max-w-[28rem]">
+                <NuxtLink :to="`/procurements/${item.id}`" class="block break-words font-medium text-primary hover:underline">
                   {{ item.title }}
                 </NuxtLink>
               </TableCell>
