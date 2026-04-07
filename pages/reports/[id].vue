@@ -8,20 +8,39 @@ definePageMeta({
 const route = useRoute();
 const detail = useReportDetail();
 
+type ReportDetailSectionId = "summary" | "portfolio" | "suppliers" | "stations" | "sources" | "operations";
+type ReportSectionId = "analytics" | "suppliers" | "npp" | "parsers";
+
 const reportTypeLabels: Record<string, string> = {
-  "daily-overview": "Ежедневный обзор",
-  "supplier-risk": "Риски поставщиков",
-  "supplier-due-diligence": "Добросовестность поставщиков",
-  "npp-station-orders": "Закупки по АЭС",
-  "pipeline-incident": "Инциденты пайплайна"
+  "daily-overview": "Аналитическая сводка по закупкам",
+  "supplier-risk": "Риски и концентрация поставщиков",
+  "supplier-due-diligence": "Проверка благонадёжности поставщиков",
+  "npp-station-orders": "Закупочная активность АЭС",
+  "pipeline-incident": "Стабильность парсеров и публикации"
 };
 
 const reportTypeDescriptions: Record<string, string> = {
-  "daily-overview": "Сводка по закупкам, объёму данных, дедлайнам и активности источников.",
-  "supplier-risk": "Отчёт про концентрацию, риск-сигналы и закупки, требующие внимания.",
-  "supplier-due-diligence": "Отдельная проверка поставщиков по РНП, Федресурсу, ФНС и закупочной активности.",
-  "npp-station-orders": "Подробный срез по каждой АЭС: что заказывала станция, когда и в каком источнике это найдено.",
-  "pipeline-incident": "Срез по качеству запусков, публикации и сбоям в сборе."
+  "daily-overview": "Сводный отчет по закупкам, объему данных, дедлайнам и активности источников.",
+  "supplier-risk": "Отчет по концентрации, риск-сигналам и закупкам, требующим приоритетного внимания.",
+  "supplier-due-diligence": "Проверка поставщиков по РНП, Федресурсу, ФНС и собственной закупочной активности.",
+  "npp-station-orders": "Подробный срез по атомным станциям: какие закупки публиковались и в каком источнике они были найдены.",
+  "pipeline-incident": "Срез по качеству запусков, публикации и сбоям в контуре сбора."
+};
+
+const reportTypeSections: Record<string, ReportDetailSectionId[]> = {
+  "daily-overview": ["summary", "portfolio", "sources"],
+  "supplier-risk": ["summary", "portfolio", "suppliers", "sources"],
+  "supplier-due-diligence": ["summary", "suppliers"],
+  "npp-station-orders": ["summary", "stations", "sources"],
+  "pipeline-incident": ["summary", "sources", "operations"]
+};
+
+const reportTypeReportSection: Record<string, ReportSectionId> = {
+  "daily-overview": "analytics",
+  "supplier-risk": "suppliers",
+  "supplier-due-diligence": "suppliers",
+  "npp-station-orders": "npp",
+  "pipeline-incident": "parsers"
 };
 
 const title = computed(() => detail.item.value?.name || "Карточка отчёта");
@@ -58,43 +77,62 @@ const hasOperationalAnalytics = computed(
     (detail.item.value?.recentSourceRuns?.length ?? 0) > 0 ||
     (detail.item.value?.recentProcurements?.length ?? 0) > 0
 );
+const enabledSections = computed<ReportDetailSectionId[]>(() => {
+  const reportType = detail.item.value?.reportType ?? "daily-overview";
+  return reportTypeSections[reportType] ?? ["summary"];
+});
+const showPortfolioSection = computed(
+  () => enabledSections.value.includes("portfolio") && hasPortfolioStructure.value
+);
+const showSuppliersSection = computed(
+  () => enabledSections.value.includes("suppliers") && (hasMarketConcentration.value || hasSupplierDueDiligence.value)
+);
+const showStationsSection = computed(
+  () => enabledSections.value.includes("stations") && hasNppStationOrders.value
+);
+const showSourcesSection = computed(
+  () => enabledSections.value.includes("sources") && hasSourceAnalytics.value
+);
+const showOperationsSection = computed(
+  () => enabledSections.value.includes("operations") && hasOperationalAnalytics.value
+);
 const reportSections = computed(() => {
   const sections = [
     {
       id: "summary",
       label: "Сводка",
       description: "Метрики, индексы, ключевые сигналы и план действий.",
-      visible: true
+      visible: enabledSections.value.includes("summary")
     },
     {
       id: "portfolio",
       label: "Портфель",
       description: "Дедлайны, статусы, бюджеты и общая структура выборки.",
-      visible: hasPortfolioStructure.value
+      visible: showPortfolioSection.value
     },
     {
       id: "suppliers",
       label: "Поставщики",
       description: "Концентрация и отдельная проверка добросовестности поставщиков.",
-      visible: hasMarketConcentration.value || hasSupplierDueDiligence.value
+      visible: showSuppliersSection.value
     },
     {
       id: "stations",
       label: "АЭС",
       description: "Закупочная активность по станциям и список заказов.",
-      visible: hasNppStationOrders.value
+      visible: showStationsSection.value
     },
     {
       id: "sources",
       label: "Источники",
       description: "Вклад каналов, риски и публикационная устойчивость.",
-      visible: hasSourceAnalytics.value
+      visible: showSourcesSection.value
     },
     {
       id: "operations",
       label: "Операционный контур",
       description: "Запуски конвейера и закупки, которые стоит проверить вручную.",
-      visible: hasOperationalAnalytics.value
+      visible: showOperationsSection.value
     }
   ];
 
@@ -106,6 +144,20 @@ const deadlineMax = computed(() =>
 const statusMixMax = computed(() =>
   Math.max(...(detail.item.value?.statusMix?.map((item) => item.count) ?? [1]), 1)
 );
+const backToReportsLink = computed(() => {
+  const reportType = detail.item.value?.reportType;
+
+  if (!reportType) {
+    return { path: "/reports" };
+  }
+
+  return {
+    path: "/reports",
+    query: {
+      section: reportTypeReportSection[reportType] ?? "analytics"
+    }
+  };
+});
 
 function reportTypeLabel(reportType?: string | null) {
   return reportTypeLabels[reportType ?? ""] ?? "Оперативный отчёт";
@@ -232,7 +284,7 @@ watchEffect(() => {
         {{ formatEnumLabel(detail.item.value.status) }}
       </Badge>
       <Button as-child variant="secondary">
-        <NuxtLink to="/reports">К списку</NuxtLink>
+        <NuxtLink :to="backToReportsLink">К списку</NuxtLink>
       </Button>
     </template>
   </PageHeader>
@@ -411,7 +463,7 @@ watchEffect(() => {
     </section>
 
     <section
-      v-if="hasPortfolioStructure"
+      v-if="showPortfolioSection"
       id="portfolio"
       class="space-y-4 scroll-mt-24"
     >
@@ -513,7 +565,7 @@ watchEffect(() => {
     </section>
 
     <section
-      v-if="hasMarketConcentration || hasSupplierDueDiligence"
+      v-if="showSuppliersSection"
       id="suppliers"
       class="space-y-4 scroll-mt-24"
     >
@@ -679,7 +731,7 @@ watchEffect(() => {
     </section>
 
     <section
-      v-if="hasNppStationOrders"
+      v-if="showStationsSection"
       id="stations"
       class="space-y-4 scroll-mt-24"
     >
@@ -757,7 +809,7 @@ watchEffect(() => {
     </section>
 
     <section
-      v-if="hasSourceAnalytics"
+      v-if="showSourcesSection"
       id="sources"
       class="space-y-4 scroll-mt-24"
     >
@@ -843,7 +895,7 @@ watchEffect(() => {
     </section>
 
     <section
-      v-if="hasOperationalAnalytics"
+      v-if="showOperationsSection"
       id="operations"
       class="space-y-4 scroll-mt-24"
     >
