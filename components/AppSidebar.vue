@@ -46,8 +46,9 @@ function isActive(href: string) {
 <template>
   <Sidebar class="border-sidebar-border bg-sidebar/95 backdrop-blur supports-[backdrop-filter]:bg-sidebar/80">
     <SidebarHeader>
-      <div
-        class="flex items-center gap-3 rounded-2xl bg-background/55 px-3 py-3 shadow-sm ring-1 ring-sidebar-border/50"
+      <NuxtLink
+        to="/dashboard"
+        class="flex items-center gap-3 rounded-2xl bg-background/55 px-3 py-3 shadow-sm ring-1 ring-sidebar-border/50 transition hover:bg-background/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         :class="!sidebar.open.value && !sidebar.isMobile.value ? 'justify-center px-2' : ''"
       >
         <div class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/95 shadow-sm ring-1 ring-sidebar-border/40">
@@ -61,7 +62,7 @@ function isActive(href: string) {
           <p class="text-xs uppercase tracking-[0.16em] text-muted-foreground">NPPWEB</p>
           <p class="truncate text-sm font-semibold text-foreground">Procurement Monitor</p>
         </div>
-      </div>
+      </NuxtLink>
     </SidebarHeader>
 
     <SidebarContent>
