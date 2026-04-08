@@ -67,7 +67,13 @@ export function formatDateTime(value?: string | null) {
     return "Нет данных";
   }
 
-  return dateTimeFormatter.format(new Date(value));
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Нет данных";
+  }
+
+  return dateTimeFormatter.format(date);
 }
 
 export function formatDate(value?: string | null) {
@@ -75,7 +81,13 @@ export function formatDate(value?: string | null) {
     return "Нет данных";
   }
 
-  return dateFormatter.format(new Date(value));
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Нет данных";
+  }
+
+  return dateFormatter.format(date);
 }
 
 export function formatNumber(value?: number | null) {
@@ -95,7 +107,7 @@ export function formatCompactNumber(value?: number | null) {
 }
 
 export function formatPercent(value?: number | null) {
-  if (value === null || value === undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
     return "0%";
   }
 

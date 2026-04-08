@@ -327,7 +327,7 @@ onMounted(() => {
                   <Badge :variant="item.attentionRequired ? 'destructive' : 'success'">
                     {{ item.attentionRequired ? "Требует внимания" : "Норма" }}
                   </Badge>
-                  <p class="max-w-xs text-sm text-muted-foreground">{{ item.attentionReason }}</p>
+                  <p class="max-w-xs break-words text-sm text-muted-foreground">{{ item.attentionReason }}</p>
                 </div>
               </TableCell>
               <TableCell>
@@ -345,7 +345,7 @@ onMounted(() => {
               <TableCell>
                 <div class="space-y-1">
                   <p>{{ formatDateTime(item.lastRunAt) }}</p>
-                  <p class="text-sm text-muted-foreground">
+                  <p class="break-words text-sm text-muted-foreground">
                     {{ item.lastErrorMessage || `Сбоев: ${formatNumber(item.failedRuns)}` }}
                   </p>
                 </div>

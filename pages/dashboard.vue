@@ -1122,8 +1122,8 @@ onMounted(async () => {
                     <p class="text-sm text-muted-foreground">{{ item.sourceCode }}</p>
                   </div>
                 </TableCell>
-                <TableCell>{{ item.attentionReason }}</TableCell>
-                <TableCell>{{ item.lastErrorMessage || "Нет ошибок" }}</TableCell>
+                <TableCell class="max-w-xs break-words">{{ item.attentionReason }}</TableCell>
+                <TableCell class="max-w-xs break-words">{{ item.lastErrorMessage || "Нет ошибок" }}</TableCell>
                 <TableCell>{{ formatPercent(item.successRate) }}</TableCell>
                 <TableCell>{{ formatPercent(item.publicationRate) }}</TableCell>
                 <TableCell>{{ formatDateTime(item.lastRunAt) }}</TableCell>
