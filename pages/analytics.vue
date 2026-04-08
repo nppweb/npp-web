@@ -481,7 +481,7 @@ onMounted(() => {
         <div class="min-w-0 space-y-4">
           <p class="text-sm font-medium uppercase tracking-[0.2em] text-muted-foreground">Общий поток</p>
           <div class="space-y-2">
-            <h2 class="text-2xl font-semibold tracking-tight">Операционный слой остаётся отдельным</h2>
+            <h2 class="text-2xl font-semibold tracking-tight">Операционный слой</h2>
             <p class="max-w-3xl text-sm leading-6 text-muted-foreground">
               Ниже идёт уже общий контур по всем источникам: сроки, здоровье pipeline и концентрация по поставщикам. Так атомная аналитика не смешивается
               с ежедневным мониторингом рисков.
