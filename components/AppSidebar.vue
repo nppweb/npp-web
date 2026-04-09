@@ -25,6 +25,7 @@ const icons: Record<string, Component> = {
   "/analytics/npp": Activity,
   "/dashboard": LayoutDashboard,
   "/jobs": Radar,
+  "/parser-runs": Radar,
   "/procurements": FileSearch,
   "/reports/suppliers": FileBarChart2,
   "/reports/niches": FileBarChart2,

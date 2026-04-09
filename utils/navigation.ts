@@ -71,15 +71,20 @@ export const APP_NAVIGATION_GROUPS: AppNavigationGroup[] = [
       {
         title: "Операции парсеров",
         href: "/jobs",
-        description: "Ручной запуск, журнал прогонов и инциденты сборщиков",
+        description: "Ручной запуск, состояние источников и инженерные действия",
         roles: ["DEVELOPER", "ADMIN"]
       },
       {
-        title: "Парсеры",
-        href: "/reports/parsers",
-        description: "Технические отчёты по стабильности парсеров",
-        roles: ["DEVELOPER", "ADMIN"],
-        reportSection: "parsers"
+        title: "Журнал запусков",
+        href: "/parser-runs",
+        description: "История прогонов, статусы, длительность и технические детали",
+        roles: ["DEVELOPER", "ADMIN"]
+      },
+      {
+        title: "Администрирование парсеров",
+        href: "/admin/parsers",
+        description: "Управление расписанием, автозапуском и здоровьем парсеров",
+        roles: ["DEVELOPER", "ADMIN"]
       }
     ]
   },
@@ -106,18 +111,19 @@ export const APP_NAVIGATION_GROUPS: AppNavigationGroup[] = [
         description: "Закупочная активность по атомным станциям",
         roles: ["ANALYST", "ADMIN"],
         reportSection: "npp"
+      },
+      {
+        title: "Парсеры",
+        href: "/reports/parsers",
+        description: "Технические отчёты по стабильности парсеров",
+        roles: ["DEVELOPER", "ADMIN"],
+        reportSection: "parsers"
       }
     ]
   },
   {
     title: "Администрирование",
     items: [
-      {
-        title: "Парсеры",
-        href: "/admin/parsers",
-        description: "Контур управления и здоровья сборщиков",
-        roles: ["DEVELOPER", "ADMIN"]
-      },
       {
         title: "Пользователи",
         href: "/users",

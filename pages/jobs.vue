@@ -151,42 +151,7 @@ onMounted(() => {
   <PageHeader
     title="Операции парсеров"
     description="Единая зона для ручного запуска сборщиков, чтения последних прогонов и разбора технических инцидентов."
-  >
-    <template #actions>
-      <div class="flex items-end gap-2">
-        <div class="w-56 space-y-2">
-          <Label for="jobs-source">Источник</Label>
-          <Select v-model="selectedSource">
-            <SelectTrigger id="jobs-source">
-              <SelectValue placeholder="Все источники" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem :value="allSourcesValue">Все источники</SelectItem>
-              <SelectItem v-for="source in jobs.sources.value" :key="source.id" :value="source.code">
-                {{ source.name }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button
-          variant="secondary"
-          :disabled="triggerLoading || sourceRows.length === 0"
-          @click="triggerCollectors(jobs.sourceFilter.value ? [jobs.sourceFilter.value] : undefined)"
-        >
-          {{
-            triggerLoading
-              ? "Запуск..."
-              : jobs.sourceFilter.value
-                ? `Запустить ${selectedSourceName}`
-                : "Запустить все"
-          }}
-        </Button>
-        <Button variant="secondary" :disabled="jobs.loading.value" @click="loadAll()">
-          {{ jobs.loading.value ? "Загрузка..." : "Обновить" }}
-        </Button>
-      </div>
-    </template>
-  </PageHeader>
+  />
 
   <div v-if="jobs.loading.value" class="grid gap-4 md:grid-cols-3">
     <Skeleton v-for="item in 3" :key="item" class="h-32 rounded-xl" />
@@ -210,7 +175,7 @@ onMounted(() => {
       />
     </div>
 
-    <div class="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+    <div class="grid gap-4">
       <Card class="border-border/70 bg-gradient-to-br from-background via-background to-muted/20">
         <CardHeader>
           <CardTitle>Панель запуска</CardTitle>
@@ -220,6 +185,57 @@ onMounted(() => {
           </CardDescription>
         </CardHeader>
         <CardContent class="space-y-5">
+          <div class="flex flex-wrap items-center justify-between gap-3 rounded-3xl border bg-muted/10 p-4">
+            <div class="space-y-1">
+              <p class="text-sm font-medium">Журнал запусков вынесен отдельно</p>
+              <p class="text-sm leading-6 text-muted-foreground">
+                История прогонов теперь живёт на отдельной странице, чтобы запуск источников и разбор логов не мешались на одном экране.
+              </p>
+            </div>
+            <Button as-child variant="secondary">
+              <NuxtLink to="/parser-runs">Открыть журнал</NuxtLink>
+            </Button>
+          </div>
+
+          <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
+            <div class="space-y-2">
+              <Label for="jobs-source">Источник</Label>
+              <Select v-model="selectedSource">
+                <SelectTrigger id="jobs-source">
+                  <SelectValue placeholder="Все источники" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem :value="allSourcesValue">Все источники</SelectItem>
+                  <SelectItem v-for="source in jobs.sources.value" :key="source.id" :value="source.code">
+                    {{ source.name }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div class="flex items-end">
+              <Button
+                class="w-full lg:w-auto"
+                :disabled="triggerLoading || sourceRows.length === 0"
+                @click="triggerCollectors(jobs.sourceFilter.value ? [jobs.sourceFilter.value] : undefined)"
+              >
+                {{
+                  triggerLoading
+                    ? "Запуск..."
+                    : jobs.sourceFilter.value
+                      ? `Запустить ${selectedSourceName}`
+                      : "Запустить все источники"
+                }}
+              </Button>
+            </div>
+
+            <div class="flex items-end">
+              <Button variant="secondary" class="w-full lg:w-auto" :disabled="jobs.loading.value" @click="loadAll()">
+                {{ jobs.loading.value ? "Загрузка..." : "Обновить" }}
+              </Button>
+            </div>
+          </div>
+
           <div class="grid gap-3 sm:grid-cols-2">
             <div
               v-for="item in launchSummary"
@@ -241,18 +257,6 @@ onMounted(() => {
           </div>
 
           <div class="flex flex-wrap gap-2">
-            <Button
-              :disabled="triggerLoading || sourceRows.length === 0"
-              @click="triggerCollectors(jobs.sourceFilter.value ? [jobs.sourceFilter.value] : undefined)"
-            >
-              {{
-                triggerLoading
-                  ? "Запуск..."
-                  : jobs.sourceFilter.value
-                    ? `Запустить ${selectedSourceName}`
-                    : "Запустить все источники"
-              }}
-            </Button>
             <Button
               v-if="jobs.sourceFilter.value"
               variant="outline"
@@ -340,56 +344,5 @@ onMounted(() => {
         </CardContent>
       </Card>
     </div>
-
-    <Card>
-      <CardHeader>
-        <CardTitle>Журнал запусков</CardTitle>
-        <CardDescription>
-          По каждому прогону видны источник, статус, длительность и технические детали инцидентов. Фильтр сверху
-          помогает быстро сузить журнал до конкретного сборщика.
-        </CardDescription>
-      </CardHeader>
-      <CardContent v-if="jobs.runs.value.length === 0">
-        <EmptyState
-          title="Запуски не найдены"
-          description="Измените фильтр по источнику или дождитесь новых запусков."
-        />
-      </CardContent>
-      <CardContent v-else class="px-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Ключ запуска</TableHead>
-              <TableHead>Источник</TableHead>
-              <TableHead>Статус</TableHead>
-              <TableHead>Старт</TableHead>
-              <TableHead>Длительность</TableHead>
-              <TableHead>Найдено</TableHead>
-              <TableHead>Опубликовано</TableHead>
-              <TableHead>Ошибок</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow v-for="run in jobs.runs.value" :key="run.id">
-              <TableCell>
-                <div class="space-y-1">
-                  <p class="font-medium">{{ run.runKey }}</p>
-                  <p class="text-sm text-muted-foreground">{{ run.errorMessage || "Без ошибок" }}</p>
-                </div>
-              </TableCell>
-              <TableCell>{{ run.sourceCode }}</TableCell>
-              <TableCell>
-                <Badge :variant="badgeVariant(run.status)">{{ formatEnumLabel(run.status) }}</Badge>
-              </TableCell>
-              <TableCell>{{ formatDateTime(run.startedAt) }}</TableCell>
-              <TableCell>{{ formatDuration(run.startedAt, run.finishedAt) }}</TableCell>
-              <TableCell>{{ formatNumber(run.itemsDiscovered) }}</TableCell>
-              <TableCell>{{ formatNumber(run.itemsPublished) }}</TableCell>
-              <TableCell>{{ formatNumber(run.itemsFailed) }}</TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
   </template>
 </template>

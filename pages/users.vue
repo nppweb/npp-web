@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import { getRolePermissions } from "~/utils/access";
-import type { AppUser } from "~/graphql/types";
-
 definePageMeta({
   title: "Пользователи",
-  description: "Управление ролями, доступом и жизненным циклом учётных записей",
+  description: "Каталог учётных записей для перехода в отдельное администрирование пользователя",
   roles: ["ADMIN"]
 });
 
@@ -14,9 +11,6 @@ useHead({
 
 const usersData = useUsersData();
 const auth = useAuthSession();
-const userDeactivateOpen = ref(false);
-const userDeleteOpen = ref(false);
-const avatarInputs = reactive<Record<string, HTMLInputElement | null>>({});
 
 const roleOptions = [
   { label: "Пользователь", value: "USER" },
@@ -34,15 +28,11 @@ const activeUsersCount = computed(
 const filteredUsers = computed(() =>
   usersData.users.value.filter((user) => {
     const normalizedQuery = searchQuery.value.trim().toLowerCase();
-    const form = usersData.editForms[user.id];
-    const searchableName = (form?.fullName ?? user.fullName).toLowerCase();
-    const searchableEmail = (form?.email ?? user.email).toLowerCase();
     const matchesQuery =
       normalizedQuery.length === 0 ||
-      searchableName.includes(normalizedQuery) ||
-      searchableEmail.includes(normalizedQuery);
-    const matchesRole =
-      selectedRole.value === "ALL" || (form?.role ?? user.role) === selectedRole.value;
+      user.fullName.toLowerCase().includes(normalizedQuery) ||
+      user.email.toLowerCase().includes(normalizedQuery);
+    const matchesRole = selectedRole.value === "ALL" || user.role === selectedRole.value;
     const matchesStatus =
       selectedStatus.value === "ALL" ||
       (selectedStatus.value === "ACTIVE" ? user.isActive : !user.isActive);
@@ -50,82 +40,6 @@ const filteredUsers = computed(() =>
     return matchesQuery && matchesRole && matchesStatus;
   })
 );
-
-function userPermissions(userId: string) {
-  return getRolePermissions(usersData.editForms[userId]?.role ?? "USER");
-}
-
-function isUserDirty(user: AppUser) {
-  const form = usersData.editForms[user.id];
-
-  if (!form) {
-    return false;
-  }
-
-  return (
-    form.fullName.trim() !== user.fullName ||
-    form.email.trim().toLowerCase() !== user.email.toLowerCase() ||
-    form.avatarUrl !== (user.avatarUrl ?? "") ||
-    form.role !== user.role ||
-    form.newPassword.trim().length > 0
-  );
-}
-
-function openAvatarPicker(userId: string) {
-  avatarInputs[userId]?.click();
-}
-
-async function onAvatarSelected(userId: string, event: Event) {
-  const target = event.target as HTMLInputElement | null;
-  const file = target?.files?.[0];
-
-  if (!file) {
-    return;
-  }
-
-  await usersData.setEditAvatarFromFile(userId, file);
-
-  if (target) {
-    target.value = "";
-  }
-}
-
-async function saveUserCard(user: AppUser) {
-  const updatedUser = await usersData.updateUser(user);
-
-  if (updatedUser && updatedUser.id === auth.user.value?.id) {
-    auth.applyUserProfile(updatedUser);
-  }
-}
-
-async function confirmDeactivate() {
-  const targetUser = usersData.userToDeactivate.value;
-
-  if (!targetUser) {
-    return;
-  }
-
-  userDeactivateOpen.value = false;
-  await usersData.deactivate(targetUser);
-
-  if (targetUser.id === auth.user.value?.id) {
-    auth.applyUserProfile({
-      ...targetUser,
-      isActive: false
-    });
-  }
-}
-
-async function confirmDelete() {
-  const targetUser = usersData.userToDelete.value;
-
-  if (!targetUser) {
-    return;
-  }
-
-  userDeleteOpen.value = false;
-  await usersData.deleteUser(targetUser);
-}
 
 onMounted(() => {
   void usersData.load();
@@ -135,7 +49,7 @@ onMounted(() => {
 <template>
   <PageHeader
     title="Пользователи"
-    description="Карточки учётных записей с редактированием данных, роли, пароля и аватара прямо на месте."
+    description="На этой странице только краткие карточки. Полное администрирование пользователя открывается на отдельной странице."
   >
     <template #actions>
       <Button type="button" @click="usersData.createDialogOpen.value = true">
@@ -157,8 +71,8 @@ onMounted(() => {
   </Card>
 
   <Card v-if="usersData.loading.value">
-    <CardContent class="grid gap-4 pt-6 md:grid-cols-2">
-      <Skeleton v-for="item in 4" :key="item" class="h-80 rounded-3xl" />
+    <CardContent class="grid gap-4 pt-6 md:grid-cols-2 xl:grid-cols-3">
+      <Skeleton v-for="item in 6" :key="item" class="h-40 rounded-3xl" />
     </CardContent>
   </Card>
 
@@ -174,7 +88,7 @@ onMounted(() => {
       <CardHeader>
         <CardTitle>Фильтры и поиск</CardTitle>
         <CardDescription>
-          Карточки можно быстро сузить по имени, email, роли и статусу доступа.
+          Найдите нужного пользователя и откройте его отдельную административную карточку.
         </CardDescription>
       </CardHeader>
       <CardContent class="grid gap-4">
@@ -241,223 +155,53 @@ onMounted(() => {
       </CardContent>
     </Card>
 
-    <div v-else class="grid gap-4 xl:grid-cols-2">
-      <Card v-for="user in filteredUsers" :key="user.id" class="overflow-hidden">
-        <CardHeader class="gap-4 border-b border-border/60 bg-muted/10">
-          <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div class="flex min-w-0 items-center gap-4">
+    <div v-else class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <NuxtLink
+        v-for="user in filteredUsers"
+        :key="user.id"
+        :to="`/users/${user.id}`"
+        class="block"
+      >
+        <Card class="h-full border-border/70 transition hover:-translate-y-0.5 hover:border-primary/40 hover:bg-muted/10">
+          <CardContent class="flex h-full flex-col gap-5 p-6">
+            <div class="flex items-start gap-4">
               <Avatar
-                :src="usersData.editForms[user.id]?.avatarUrl || ''"
-                :fallback="usersData.editForms[user.id]?.fullName || user.fullName"
+                :src="user.avatarUrl || ''"
+                :fallback="user.fullName"
                 size="lg"
-                class="h-16 w-16"
+                class="h-14 w-14"
               />
               <div class="min-w-0 space-y-1">
-                <CardTitle class="truncate text-lg">
-                  {{ usersData.editForms[user.id]?.fullName || user.fullName }}
-                </CardTitle>
-                <CardDescription class="truncate">
-                  {{ usersData.editForms[user.id]?.email || user.email }}
-                </CardDescription>
-                <div class="flex flex-wrap gap-2 pt-1">
-                  <Badge variant="secondary">
-                    {{ formatRoleLabel(usersData.editForms[user.id]?.role || user.role) }}
-                  </Badge>
-                  <Badge :variant="user.isActive ? 'success' : 'destructive'">
-                    {{ user.isActive ? "Активен" : "Отключён" }}
-                  </Badge>
-                  <Badge v-if="user.id === auth.user.value?.id" variant="outline">Это вы</Badge>
-                </div>
+                <p class="truncate text-lg font-semibold">{{ user.fullName }}</p>
+                <p class="truncate text-sm text-muted-foreground">{{ user.email }}</p>
               </div>
             </div>
 
             <div class="flex flex-wrap gap-2">
-              <input
-                :ref="(element) => { avatarInputs[user.id] = element as HTMLInputElement | null; }"
-                type="file"
-                accept="image/*"
-                class="hidden"
-                @change="onAvatarSelected(user.id, $event)"
-              >
-              <Button type="button" variant="outline" size="sm" @click="openAvatarPicker(user.id)">
-                Аватар
-              </Button>
-              <Button
-                v-if="usersData.editForms[user.id]?.avatarUrl"
-                type="button"
-                variant="ghost"
-                size="sm"
-                @click="usersData.clearEditAvatar(user.id)"
-              >
-                Убрать фото
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent class="grid gap-6 p-6">
-          <div class="grid gap-4 md:grid-cols-2">
-            <div class="space-y-2">
-              <Label :for="`user-name-${user.id}`">Имя</Label>
-              <Input
-                :id="`user-name-${user.id}`"
-                v-model="usersData.editForms[user.id].fullName"
-                :invalid="Boolean(usersData.getEditErrors(user.id).fullName)"
-                placeholder="Имя пользователя"
-              />
-              <p v-if="usersData.getEditErrors(user.id).fullName" class="text-sm text-destructive">
-                {{ usersData.getEditErrors(user.id).fullName }}
-              </p>
-            </div>
-
-            <div class="space-y-2">
-              <Label :for="`user-email-${user.id}`">Email / логин</Label>
-              <Input
-                :id="`user-email-${user.id}`"
-                v-model="usersData.editForms[user.id].email"
-                type="email"
-                :invalid="Boolean(usersData.getEditErrors(user.id).email)"
-                placeholder="mail@example.com"
-              />
-              <p v-if="usersData.getEditErrors(user.id).email" class="text-sm text-destructive">
-                {{ usersData.getEditErrors(user.id).email }}
-              </p>
-            </div>
-
-            <div class="space-y-2">
-              <Label :for="`user-role-${user.id}`">Роль</Label>
-              <Select v-model="usersData.editForms[user.id].role">
-                <SelectTrigger :id="`user-role-${user.id}`">
-                  <SelectValue placeholder="Выберите роль" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem v-for="role in roleOptions" :key="role.value" :value="role.value">
-                    {{ role.label }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div class="space-y-2">
-              <Label :for="`user-password-${user.id}`">Новый пароль</Label>
-              <Input
-                :id="`user-password-${user.id}`"
-                v-model="usersData.editForms[user.id].newPassword"
-                type="password"
-                :invalid="Boolean(usersData.getEditErrors(user.id).newPassword)"
-                placeholder="Оставьте пустым, если не меняете"
-              />
-              <p v-if="usersData.getEditErrors(user.id).newPassword" class="text-sm text-destructive">
-                {{ usersData.getEditErrors(user.id).newPassword }}
-              </p>
-              <p v-else class="text-xs text-muted-foreground">
-                Если пароль изменить, активные сессии пользователя будут завершены.
-              </p>
-            </div>
-          </div>
-
-          <div class="grid gap-3 rounded-3xl border bg-muted/10 p-4 text-sm text-muted-foreground sm:grid-cols-2">
-            <div class="space-y-1">
-              <p class="font-medium text-foreground">Последний вход</p>
-              <p>{{ formatDateTime(user.lastLoginAt) }}</p>
-            </div>
-            <div class="space-y-1">
-              <p class="font-medium text-foreground">Обновлена карточка</p>
-              <p>{{ formatDateTime(user.updatedAt) }}</p>
-            </div>
-          </div>
-
-          <div class="space-y-3">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <p class="text-sm font-medium">Что сможет делать пользователь</p>
-                <p class="text-sm text-muted-foreground">
-                  Возможности пересчитываются прямо по выбранной роли в карточке.
-                </p>
-              </div>
-              <Badge variant="outline">
-                {{ userPermissions(user.id).length }} прав
+              <Badge variant="secondary">{{ formatRoleLabel(user.role) }}</Badge>
+              <Badge :variant="user.isActive ? 'success' : 'destructive'">
+                {{ user.isActive ? "Активен" : "Отключён" }}
               </Badge>
+              <Badge v-if="user.id === auth.user.value?.id" variant="outline">Это вы</Badge>
             </div>
 
-            <div class="grid gap-3">
-              <div
-                v-for="permission in userPermissions(user.id)"
-                :key="`${user.id}-${permission.key}`"
-                class="rounded-2xl border bg-muted/15 p-3"
-              >
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                  <p class="text-sm font-medium">{{ permission.label }}</p>
-                  <Badge variant="outline">{{ permission.category }}</Badge>
-                </div>
-                <p class="mt-1 text-sm text-muted-foreground">{{ permission.description }}</p>
+            <div class="grid gap-3 rounded-3xl border bg-muted/10 p-4 text-sm text-muted-foreground">
+              <div class="flex items-center justify-between gap-3">
+                <span>Последний вход</span>
+                <span class="font-medium text-foreground">{{ formatDateTime(user.lastLoginAt) }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span>Карточка обновлена</span>
+                <span class="font-medium text-foreground">{{ formatDateTime(user.updatedAt) }}</span>
               </div>
             </div>
-          </div>
 
-          <div class="flex flex-wrap items-center gap-2 border-t border-border/60 pt-4">
-            <Button
-              type="button"
-              :disabled="!isUserDirty(user) || !usersData.isEditFormValid(user.id) || usersData.updateLoadingId.value === user.id"
-              @click="saveUserCard(user)"
-            >
-              {{ usersData.updateLoadingId.value === user.id ? "Сохранение..." : "Сохранить изменения" }}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              :disabled="!isUserDirty(user)"
-              @click="usersData.resetEditForm(user.id)"
-            >
-              Отменить изменения
-            </Button>
-            <Button
-              v-if="!user.isActive"
-              type="button"
-              variant="secondary"
-              :disabled="usersData.activationLoadingId.value === user.id"
-              @click="usersData.setUserActive(user, true)"
-            >
-              {{
-                usersData.activationLoadingId.value === user.id
-                  ? "Активация..."
-                  : "Активировать"
-              }}
-            </Button>
-            <Button
-              v-else
-              type="button"
-              variant="destructive"
-              :disabled="user.id === auth.user.value?.id || usersData.deactivateLoadingId.value === user.id"
-              @click="
-                usersData.userToDeactivate.value = user;
-                userDeactivateOpen = true;
-              "
-            >
-              {{
-                usersData.deactivateLoadingId.value === user.id
-                  ? 'Деактивация...'
-                  : 'Деактивировать'
-              }}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              :disabled="user.id === auth.user.value?.id || usersData.deleteLoadingId.value === user.id"
-              @click="
-                usersData.userToDelete.value = user;
-                userDeleteOpen = true;
-              "
-            >
-              {{
-                usersData.deleteLoadingId.value === user.id
-                  ? "Удаление..."
-                  : "Удалить"
-              }}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+            <p class="text-sm text-muted-foreground">
+              Открыть административную страницу пользователя
+            </p>
+          </CardContent>
+        </Card>
+      </NuxtLink>
     </div>
   </template>
 
@@ -540,32 +284,4 @@ onMounted(() => {
       </form>
     </DialogContent>
   </Dialog>
-
-  <AlertDialog v-model:open="userDeactivateOpen">
-    <AlertDialogContent
-      title="Деактивировать пользователя?"
-      :description="
-        usersData.userToDeactivate.value
-          ? `Пользователь ${usersData.userToDeactivate.value.email} потеряет доступ к системе.`
-          : 'Подтвердите действие.'
-      "
-      action-label="Деактивировать"
-      cancel-label="Отмена"
-      @action="confirmDeactivate()"
-    />
-  </AlertDialog>
-
-  <AlertDialog v-model:open="userDeleteOpen">
-    <AlertDialogContent
-      title="Удалить пользователя?"
-      :description="
-        usersData.userToDelete.value
-          ? `Учётная запись ${usersData.userToDelete.value.email} будет удалена из списка пользователей, вход будет заблокирован, а активные сессии завершены.`
-          : 'Подтвердите действие.'
-      "
-      action-label="Удалить"
-      cancel-label="Отмена"
-      @action="confirmDelete()"
-    />
-  </AlertDialog>
 </template>
