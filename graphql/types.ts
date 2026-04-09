@@ -125,6 +125,11 @@ export type SourceRun = {
   errorMessage?: string | null;
 };
 
+export type SourceRunPage = {
+  total: number;
+  items: SourceRun[];
+};
+
 export type CollectorTriggerItem = {
   sourceCode: string;
   sourceName: string;

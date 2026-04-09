@@ -351,6 +351,26 @@ export const SOURCE_RUNS_QUERY = gql`
   }
 `;
 
+export const SOURCE_RUNS_PAGE_QUERY = gql`
+  query SourceRunsPage($source: String, $limit: Int, $offset: Int) {
+    sourceRunsPage(source: $source, limit: $limit, offset: $offset) {
+      total
+      items {
+        id
+        runKey
+        sourceCode
+        status
+        startedAt
+        finishedAt
+        itemsDiscovered
+        itemsPublished
+        itemsFailed
+        errorMessage
+      }
+    }
+  }
+`;
+
 export const TRIGGER_COLLECTORS_MUTATION = gql`
   mutation TriggerCollectors($sourceCodes: [String!]) {
     triggerCollectors(sourceCodes: $sourceCodes) {

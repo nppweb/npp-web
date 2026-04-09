@@ -318,34 +318,34 @@ const nppSummaryCards = computed(() => {
 
   return [
     {
-      label: "Атомные закупки",
+      label: "Закупки атомного контура",
       value: formatNumber(summary.value.nppProcurementCount),
-      hint: `Контур АЭС с ${nppPeriodLabel.value}`
+      hint: `Накопленный реестр АЭС начиная с ${nppPeriodLabel.value}`
     },
     {
-      label: "Контракты 44/223-ФЗ",
+      label: "Контрактный контур",
       value: formatNumber(summary.value.nppContractCount),
-      hint: `Доля: ${formatPercent(contractShare)}`
+      hint: `Доля контрактных записей: ${formatPercent(contractShare)}`
     },
     {
-      label: "Станции в контуре",
+      label: "Охват атомных станций",
       value: formatNumber(summary.value.nppStationsCovered),
-      hint: `Среднее на станцию: ${formatNumber(averagePerStation)}`
+      hint: `Среднее количество записей на станцию: ${formatNumber(averagePerStation)}`
     },
     {
-      label: "Сумма по контуру",
+      label: "Совокупный объём",
       value: formatCurrency(summary.value.nppTotalAmount, "RUB"),
-      hint: "Сумма по атомным закупкам и договорам с заполненной ценой"
+      hint: "Суммарная стоимость закупок и договоров с заполненной ценой"
     },
     {
-      label: "Источников в атомке",
+      label: "Подключённые источники",
       value: formatNumber(summary.value.nppSourceCoverage.length),
-      hint: "Сколько разных потоков реально кормит атомный контур"
+      hint: "Количество источников данных, формирующих атомный контур"
     },
     {
-      label: "Заказчиков в топе",
+      label: "Ключевые заказчики",
       value: formatNumber(summary.value.nppCustomerCoverage.length),
-      hint: "Верхняя часть customer-карты по АЭС"
+      hint: "Число заказчиков в верхнем срезе атомного контура"
     }
   ];
 });
@@ -802,37 +802,35 @@ onMounted(() => {
         />
       </div>
 
-      <div class="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-        <Card class="min-w-0 overflow-hidden">
-          <CardHeader>
-            <CardTitle>Динамика атомного контура</CardTitle>
-            <CardDescription>
-              Интерактивный график показывает, как атомный слой наполняется по месяцам и где меняется интенсивность потока.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MetricLineChartInteractive
-              :items="nppTimelineItems"
-              empty-text="После следующего цикла сбора здесь появится помесячная динамика по атомному контуру."
-            />
-          </CardContent>
-        </Card>
+      <Card class="min-w-0 overflow-hidden">
+        <CardHeader>
+          <CardTitle>Динамика атомного контура</CardTitle>
+          <CardDescription>
+            Столбчатая диаграмма показывает, как атомный слой наполняется по месяцам и где меняется интенсивность потока.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <MetricColumnChart
+            :items="nppTimelineItems"
+            empty-text="После следующего цикла сбора здесь появится помесячная динамика по атомному контуру."
+          />
+        </CardContent>
+      </Card>
 
-        <Card class="min-w-0 overflow-hidden">
-          <CardHeader>
-            <CardTitle>Покрытие по станциям</CardTitle>
-            <CardDescription>
-              Базовая карта покрытия показывает, по каким АЭС уже собрано заметное число карточек.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <MetricBarList
-              :items="nppStationItems"
-              empty-text="Пока ни одна карточка не привязана к конкретной станции."
-            />
-          </CardContent>
-        </Card>
-      </div>
+      <Card class="min-w-0 overflow-hidden">
+        <CardHeader>
+          <CardTitle>Покрытие по станциям</CardTitle>
+          <CardDescription>
+            Базовая карта покрытия показывает, по каким АЭС уже собрано заметное число карточек.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <MetricBarList
+            :items="nppStationItems"
+            empty-text="Пока ни одна карточка не привязана к конкретной станции."
+          />
+        </CardContent>
+      </Card>
 
       <div class="grid gap-4 xl:grid-cols-2">
         <Card class="min-w-0 overflow-hidden">

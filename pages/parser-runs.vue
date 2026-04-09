@@ -9,51 +9,44 @@ useHead({
   title: "Журнал запусков"
 });
 
-const jobs = useJobsData();
+const parserRuns = useParserRunsData();
 const allSourcesValue = "__ALL_SOURCES__";
 
 const selectedSource = computed({
-  get: () => jobs.sourceFilter.value || allSourcesValue,
+  get: () => parserRuns.sourceFilter.value || allSourcesValue,
   set: (value: string) => {
-    jobs.sourceFilter.value = value === allSourcesValue ? "" : value;
+    void parserRuns.applySourceFilter(value === allSourcesValue ? "" : value);
   }
 });
 
 const runCards = computed(() => [
   {
-    label: "Запусков в выборке",
-    value: formatNumber(jobs.runs.value.length),
-    hint: "Количество прогонов с учётом текущего фильтра"
+    label: "Запусков в журнале",
+    value: formatNumber(parserRuns.total.value),
+    hint: `По текущему фильтру найдено ${formatNumber(parserRuns.total.value)} прогонов, на странице показано ${formatNumber(parserRuns.runs.value.length)}`
   },
   {
     label: "Успешные",
-    value: formatNumber(jobs.runs.value.filter((item) => item.status === "SUCCESS").length),
-    hint: "Прогоны без ошибок и потерь"
+    value: formatNumber(parserRuns.runs.value.filter((item) => item.status === "SUCCESS").length),
+    hint: "На текущей странице завершились без ошибок"
   },
   {
     label: "С проблемами",
     value: formatNumber(
-      jobs.runs.value.filter((item) => item.status === "FAILED" || item.status === "PARTIAL").length
+      parserRuns.runs.value.filter((item) => item.status === "FAILED" || item.status === "PARTIAL").length
     ),
-    hint: "Прогоны, требующие инженерного внимания"
+    hint: "На текущей странице требуют инженерного внимания"
   },
   {
     label: "Источников в журнале",
-    value: formatNumber(new Set(jobs.runs.value.map((item) => item.sourceCode)).size),
-    hint: "Сколько разных сборщиков попало в текущее окно"
+    value: formatNumber(new Set(parserRuns.runs.value.map((item) => item.sourceCode)).size),
+    hint: "Сколько разных сборщиков попало на открытую страницу журнала"
   }
 ]);
 
 async function reload() {
-  await Promise.all([jobs.loadSources(), jobs.load()]);
+  await Promise.all([parserRuns.loadSources(), parserRuns.load()]);
 }
-
-watch(
-  () => jobs.sourceFilter.value,
-  () => {
-    void jobs.load();
-  }
-);
 
 onMounted(() => {
   void reload();
@@ -69,8 +62,8 @@ onMounted(() => {
       <Button as-child variant="outline">
         <NuxtLink to="/jobs">К операциям парсеров</NuxtLink>
       </Button>
-      <Button variant="secondary" :disabled="jobs.loading.value" @click="reload()">
-        {{ jobs.loading.value ? "Загрузка..." : "Обновить" }}
+      <Button variant="secondary" :disabled="parserRuns.loading.value" @click="reload()">
+        {{ parserRuns.loading.value ? "Загрузка..." : "Обновить" }}
       </Button>
     </template>
   </PageHeader>
@@ -86,12 +79,12 @@ onMounted(() => {
       <div class="space-y-2">
         <Label for="parser-runs-source">Источник</Label>
         <Select v-model="selectedSource">
-          <SelectTrigger id="parser-runs-source">
-            <SelectValue placeholder="Все источники" />
-          </SelectTrigger>
+            <SelectTrigger id="parser-runs-source">
+              <SelectValue placeholder="Все источники" />
+            </SelectTrigger>
           <SelectContent>
             <SelectItem :value="allSourcesValue">Все источники</SelectItem>
-            <SelectItem v-for="source in jobs.sources.value" :key="source.id" :value="source.code">
+            <SelectItem v-for="source in parserRuns.sources.value" :key="source.id" :value="source.code">
               {{ source.name }}
             </SelectItem>
           </SelectContent>
@@ -100,7 +93,7 @@ onMounted(() => {
 
       <div class="flex items-end">
         <Button
-          v-if="jobs.sourceFilter.value"
+          v-if="parserRuns.sourceFilter.value"
           variant="ghost"
           @click="selectedSource = allSourcesValue"
         >
@@ -110,13 +103,13 @@ onMounted(() => {
     </CardContent>
   </Card>
 
-  <div v-if="jobs.loading.value" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+  <div v-if="parserRuns.loading.value" class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
     <Skeleton v-for="item in 4" :key="item" class="h-32 rounded-xl" />
   </div>
 
   <ErrorState
-    v-else-if="jobs.error.value"
-    :description="jobs.error.value"
+    v-else-if="parserRuns.error.value"
+    :description="parserRuns.error.value"
     action-label="Повторить"
     @action="reload()"
   />
@@ -136,10 +129,10 @@ onMounted(() => {
       <CardHeader>
         <CardTitle>История прогонов</CardTitle>
         <CardDescription>
-          По каждому запуску видны источник, статус, длительность и технические детали инцидентов.
+          По каждому запуску видны источник, статус, длительность и технические детали инцидентов. Журнал открывает не только последние записи, но и предыдущие страницы истории.
         </CardDescription>
       </CardHeader>
-      <CardContent v-if="jobs.runs.value.length === 0">
+      <CardContent v-if="parserRuns.runs.value.length === 0">
         <EmptyState
           title="Запуски не найдены"
           description="Измените фильтр по источнику или дождитесь новых запусков."
@@ -160,7 +153,7 @@ onMounted(() => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow v-for="run in jobs.runs.value" :key="run.id">
+            <TableRow v-for="run in parserRuns.runs.value" :key="run.id">
               <TableCell>
                 <div class="space-y-1">
                   <p class="font-medium">{{ run.runKey }}</p>
@@ -180,6 +173,12 @@ onMounted(() => {
           </TableBody>
         </Table>
       </CardContent>
+      <Pagination
+        :page="parserRuns.page.value"
+        :page-size="parserRuns.pageSize"
+        :total="parserRuns.total.value"
+        @update:page="parserRuns.setPage"
+      />
     </Card>
   </template>
 </template>

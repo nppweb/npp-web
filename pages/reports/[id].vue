@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ReportNppStationOrderItem } from "~/graphql/types";
 import {
   REPORT_SECTION_META,
   REPORT_TYPE_DESCRIPTIONS,
@@ -35,6 +36,9 @@ const reportTypeSections: Record<string, ReportDetailSectionId[]> = {
   "pipeline-incident": ["summary", "sources", "operations"]
 };
 
+const NPP_CONTRACT_SOURCE_CODES = new Set(["eis_contracts", "eis_contracts_223"]);
+const NPP_LAST_MONTH_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
 const title = computed(() => detail.item.value?.name || "Карточка отчёта");
 const description = computed(() => {
   if (detail.item.value?.description) {
@@ -48,7 +52,233 @@ const metricCards = computed(() => detail.item.value?.metrics ?? []);
 const scoreCards = computed(() => detail.item.value?.scores ?? []);
 const hasSupplierDueDiligence = computed(() => (detail.item.value?.supplierDueDiligence?.length ?? 0) > 0);
 const hasNppNicheOrders = computed(() => (detail.item.value?.nppNicheOrders?.length ?? 0) > 0);
-const hasNppStationOrders = computed(() => (detail.item.value?.nppStationOrders?.length ?? 0) > 0);
+const filteredNppStationOrders = computed<ReportNppStationOrderItem[]>(() => {
+  const sourceItems = detail.item.value?.nppStationOrders ?? [];
+  const threshold = Date.now() - NPP_LAST_MONTH_WINDOW_MS;
+  const filteredItems: ReportNppStationOrderItem[] = [];
+
+  for (const station of sourceItems) {
+    const orders = station.orders.filter((order) => {
+      if (!order.publishedAt) {
+        return false;
+      }
+
+      return new Date(order.publishedAt).getTime() >= threshold;
+    });
+
+    if (orders.length === 0) {
+      continue;
+    }
+
+    const timestamps = orders
+      .map((order) => order.publishedAt)
+      .filter((value): value is string => Boolean(value))
+      .map((value) => new Date(value).getTime());
+
+    filteredItems.push({
+        station: station.station,
+        procurementCount: orders.length,
+        contractCount: orders.filter((order) => NPP_CONTRACT_SOURCE_CODES.has(order.source)).length,
+        totalAmount: orders.reduce((sum, order) => sum + (order.amount ?? 0), 0),
+        firstPublishedAt: timestamps.length > 0 ? new Date(Math.min(...timestamps)).toISOString() : null,
+        lastPublishedAt: timestamps.length > 0 ? new Date(Math.max(...timestamps)).toISOString() : null,
+        orders
+    });
+  }
+
+  return filteredItems.sort(
+    (left, right) => right.procurementCount - left.procurementCount || left.station.localeCompare(right.station)
+  );
+});
+const nppStationMonthCards = computed(() => {
+  const items = filteredNppStationOrders.value;
+  const totalOrders = items.reduce((sum, item) => sum + item.procurementCount, 0);
+  const totalContracts = items.reduce((sum, item) => sum + item.contractCount, 0);
+  const totalAmount = items.reduce((sum, item) => sum + item.totalAmount, 0);
+  const averagePerStation = items.length > 0 ? totalOrders / items.length : 0;
+  const leadStation = items[0];
+
+  return [
+    {
+      label: "Станции с активностью",
+      value: formatNumber(items.length),
+      hint: "АЭС, по которым за последний месяц есть найденные закупки"
+    },
+    {
+      label: "Закупки за месяц",
+      value: formatNumber(totalOrders),
+      hint: `Среднее количество записей на станцию: ${formatNumber(averagePerStation)}`
+    },
+    {
+      label: "Договорный слой",
+      value: formatNumber(totalContracts),
+      hint:
+        totalOrders > 0
+          ? `Доля договорных записей: ${formatPercent((totalContracts / totalOrders) * 100)}`
+          : "За выбранный период договорные записи не найдены"
+    },
+    {
+      label: "Совокупный объём",
+      value: formatCurrency(totalAmount, "RUB"),
+      hint: leadStation ? `Лидер по активности: ${leadStation.station}` : "За последний месяц объём не сформирован"
+    }
+  ];
+});
+const nppStationMonthChartItems = computed(() =>
+  filteredNppStationOrders.value.slice(0, 8).map((item) => ({
+    label: item.station,
+    value: item.procurementCount,
+    valueLabel: `${formatNumber(item.procurementCount)} закупок`,
+    note: `${formatNumber(item.contractCount)} договоров · ${formatCurrency(item.totalAmount, "RUB")}`,
+    accent: "success" as const
+  }))
+);
+const nppStationMonthAmountItems = computed(() =>
+  [...filteredNppStationOrders.value]
+    .sort((left, right) => right.totalAmount - left.totalAmount)
+    .slice(0, 8)
+    .map((item) => ({
+      label: item.station,
+      value: item.totalAmount,
+      valueLabel: formatCurrency(item.totalAmount, "RUB"),
+      note: `${formatNumber(item.procurementCount)} закупок · ${formatNumber(item.contractCount)} договоров`,
+      accent: "primary" as const
+    }))
+);
+const nppStationMonthContractSegments = computed(() => {
+  const totalOrders = filteredNppStationOrders.value.reduce((sum, item) => sum + item.procurementCount, 0);
+  const totalContracts = filteredNppStationOrders.value.reduce((sum, item) => sum + item.contractCount, 0);
+  const nonContractOrders = Math.max(totalOrders - totalContracts, 0);
+
+  return [
+    {
+      label: "Договорный слой",
+      value: totalContracts,
+      valueLabel: `${formatNumber(totalContracts)} записей`,
+      accent: "warning" as const
+    },
+    {
+      label: "Закупочный слой",
+      value: nonContractOrders,
+      valueLabel: `${formatNumber(nonContractOrders)} записей`,
+      accent: "success" as const
+    }
+  ];
+});
+const nppStationMonthSourceItems = computed(() => {
+  const totals = new Map<string, { procurementCount: number; totalAmount: number }>();
+
+  for (const station of filteredNppStationOrders.value) {
+    for (const order of station.orders) {
+      const current = totals.get(order.source) ?? { procurementCount: 0, totalAmount: 0 };
+      current.procurementCount += 1;
+      current.totalAmount += order.amount ?? 0;
+      totals.set(order.source, current);
+    }
+  }
+
+  return Array.from(totals.entries())
+    .sort((left, right) => right[1].procurementCount - left[1].procurementCount || left[0].localeCompare(right[0]))
+    .map(([source, stats]) => ({
+      label: source,
+      value: stats.procurementCount,
+      valueLabel: `${formatNumber(stats.procurementCount)} закупок`,
+      note: formatCurrency(stats.totalAmount, "RUB"),
+      accent: "muted" as const
+    }));
+});
+const nppNicheSummary = computed(() => {
+  const items = detail.item.value?.nppNicheOrders ?? [];
+  const totalOrders = items.reduce((sum, item) => sum + item.procurementCount, 0);
+  const totalAmount = items.reduce((sum, item) => sum + item.totalAmount, 0);
+  const totalStations = new Set(items.flatMap((item) => item.stations)).size;
+  const leadNiche = items[0];
+
+  return {
+    totalOrders,
+    totalAmount,
+    totalStations,
+    leadNiche
+  };
+});
+const nppNicheDemandSegments = computed(() => {
+  const items = detail.item.value?.nppNicheOrders ?? [];
+  const topItems = items.slice(0, 4);
+  const otherCount = items.slice(4).reduce((sum, item) => sum + item.procurementCount, 0);
+  const segments: Array<{
+    label: string;
+    value: number;
+    valueLabel: string;
+    accent: "primary" | "success" | "muted";
+  }> = topItems.map((item, index) => ({
+    label: item.niche,
+    value: item.procurementCount,
+    valueLabel: `${formatNumber(item.procurementCount)} закупок`,
+    accent: index % 2 === 0 ? "primary" : "success"
+  }));
+
+  if (otherCount > 0) {
+    segments.push({
+      label: "Остальные ниши",
+      value: otherCount,
+      valueLabel: `${formatNumber(otherCount)} закупок`,
+      accent: "muted" as const
+    });
+  }
+
+  return segments;
+});
+const nppNicheCoverageItems = computed(() =>
+  (detail.item.value?.nppNicheOrders ?? [])
+    .slice()
+    .sort((left, right) => right.stationCount - left.stationCount || right.procurementCount - left.procurementCount)
+    .slice(0, 8)
+    .map((item) => ({
+      label: item.niche,
+      value: item.stationCount,
+      valueLabel: `${formatNumber(item.stationCount)} АЭС`,
+      note: `${formatNumber(item.procurementCount)} закупок · ${formatCurrency(item.totalAmount, "RUB")}`,
+      accent: "warning" as const
+    }))
+);
+const nppNicheBudgetSegments = computed(() => {
+  const items = detail.item.value?.nppNicheOrders ?? [];
+  const totalAmount = items.reduce((sum, item) => sum + item.totalAmount, 0);
+
+  if (totalAmount <= 0) {
+    return [];
+  }
+
+  return items.slice(0, 4).map((item, index) => {
+    const accent: "danger" | "warning" | "primary" =
+      index === 0 ? "danger" : index === 1 ? "warning" : "primary";
+
+    return {
+      label: item.niche,
+      value: item.totalAmount,
+      valueLabel: formatCurrency(item.totalAmount, "RUB"),
+      accent
+    };
+  });
+});
+const nppNicheFreshnessItems = computed(() =>
+  (detail.item.value?.nppNicheOrders ?? [])
+    .filter((item) => Boolean(item.lastPublishedAt))
+    .slice()
+    .sort(
+      (left, right) =>
+        new Date(right.lastPublishedAt ?? 0).getTime() - new Date(left.lastPublishedAt ?? 0).getTime()
+    )
+    .slice(0, 8)
+    .map((item) => ({
+      label: item.niche,
+      value: item.procurementCount,
+      valueLabel: formatDateTime(item.lastPublishedAt),
+      note: `${formatNumber(item.stationCount)} АЭС · ${formatCurrency(item.totalAmount, "RUB")}`,
+      accent: "success" as const
+    }))
+);
+const hasNppStationOrders = computed(() => filteredNppStationOrders.value.length > 0);
 const hasMarketConcentration = computed(
   () =>
     (detail.item.value?.supplierExposure?.length ?? 0) > 0 ||
@@ -753,12 +983,86 @@ watchEffect(() => {
         <CardHeader>
           <CardTitle>Что заказывали АЭС</CardTitle>
           <CardDescription>
-            По каждой станции видно количество заказов, договорный слой и список найденных закупок с датами.
+            По каждой станции видно количество заказов, договорный слой и список найденных закупок с датами только за последний месяц.
           </CardDescription>
         </CardHeader>
         <CardContent class="space-y-6">
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              v-for="metric in nppStationMonthCards"
+              :key="metric.label"
+              :label="metric.label"
+              :value="metric.value"
+              :hint="metric.hint"
+            />
+          </div>
+
+          <div class="grid gap-4 xl:grid-cols-2">
+            <Card class="min-w-0 overflow-hidden">
+              <CardHeader>
+                <CardTitle>Активность по станциям</CardTitle>
+                <CardDescription>
+                  Столбчатая диаграмма показывает, какие АЭС дали наибольший объём закупок за последний месяц.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <MetricColumnChart
+                  :items="nppStationMonthChartItems"
+                  empty-text="После появления закупок за последний месяц здесь появится распределение по станциям."
+                />
+              </CardContent>
+            </Card>
+
+            <Card class="min-w-0 overflow-hidden">
+              <CardHeader>
+                <CardTitle>Бюджет по станциям</CardTitle>
+                <CardDescription>
+                  Денежный срез показывает, какие станции формируют основной объём атомного контура в текущем месяце.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <MetricBarList
+                  :items="nppStationMonthAmountItems"
+                  empty-text="После появления сумм в месячном срезе здесь появится распределение бюджета по станциям."
+                />
+              </CardContent>
+            </Card>
+          </div>
+
+          <div class="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+            <Card class="min-w-0 overflow-hidden">
+              <CardHeader>
+                <CardTitle>Структура атомного слоя</CardTitle>
+                <CardDescription>
+                  Соотношение договорного и закупочного слоя за последний месяц помогает понять, какой тип записей доминирует в отчёте.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <MetricStackBar
+                  :segments="nppStationMonthContractSegments"
+                  empty-text="После накопления месячных данных здесь появится структура атомного слоя."
+                />
+              </CardContent>
+            </Card>
+
+            <Card class="min-w-0 overflow-hidden">
+              <CardHeader>
+                <CardTitle>Источники атомного потока</CardTitle>
+                <CardDescription>
+                  Показано, какие каналы сейчас формируют месячный срез по АЭС и откуда приходит основной объём записей.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <MetricBarList
+                  :items="nppStationMonthSourceItems"
+                  empty-text="После появления закупок за последний месяц здесь появится распределение по источникам."
+                />
+              </CardContent>
+            </Card>
+          </div>
+
           <div
-            v-for="station in detail.item.value.nppStationOrders"
+            v-for="station in filteredNppStationOrders"
             :key="station.station"
             class="rounded-2xl border bg-muted/10 p-4"
           >
@@ -828,13 +1132,96 @@ watchEffect(() => {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Что закупают по нишам</CardTitle>
-          <CardDescription>
-            По каждой нише видно число закупок, географию по АЭС и конкретные позиции внутри категории.
-          </CardDescription>
-        </CardHeader>
         <CardContent class="space-y-6">
+          <div class="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <Card class="min-w-0 overflow-hidden">
+              <CardHeader>
+                <CardTitle>Концентрация спроса по нишам</CardTitle>
+                <CardDescription>
+                  Видно, какие категории держат основной поток закупок АЭС и насколько рынок ниш сейчас сконцентрирован.
+                </CardDescription>
+              </CardHeader>
+              <CardContent class="space-y-5">
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <div class="rounded-2xl border bg-muted/15 p-4">
+                    <p class="text-xs uppercase tracking-[0.18em] text-muted-foreground">Всего закупок</p>
+                    <p class="mt-2 text-2xl font-semibold">{{ formatNumber(nppNicheSummary.totalOrders) }}</p>
+                    <p class="mt-1 text-sm text-muted-foreground">Во всех нишах текущего отчёта</p>
+                  </div>
+                  <div class="rounded-2xl border bg-muted/15 p-4">
+                    <p class="text-xs uppercase tracking-[0.18em] text-muted-foreground">Охват станций</p>
+                    <p class="mt-2 text-2xl font-semibold">{{ formatNumber(nppNicheSummary.totalStations) }}</p>
+                    <p class="mt-1 text-sm text-muted-foreground">Количество АЭС в нишевом срезе</p>
+                  </div>
+                  <div class="rounded-2xl border bg-muted/15 p-4">
+                    <p class="text-xs uppercase tracking-[0.18em] text-muted-foreground">Совокупный объём</p>
+                    <p class="mt-2 text-2xl font-semibold">{{ formatCurrency(nppNicheSummary.totalAmount, "RUB") }}</p>
+                    <p class="mt-1 text-sm text-muted-foreground">Бюджет по всем нишам отчёта</p>
+                  </div>
+                  <div class="rounded-2xl border bg-muted/15 p-4">
+                    <p class="text-xs uppercase tracking-[0.18em] text-muted-foreground">Ведущая ниша</p>
+                    <p class="mt-2 text-base font-semibold">{{ nppNicheSummary.leadNiche?.niche || "Нет данных" }}</p>
+                    <p class="mt-1 text-sm text-muted-foreground">
+                      {{ nppNicheSummary.leadNiche ? `${formatNumber(nppNicheSummary.leadNiche.procurementCount)} закупок` : "После накопления данных здесь появится лидер" }}
+                    </p>
+                  </div>
+                </div>
+
+                <MetricStackBar
+                  :segments="nppNicheDemandSegments"
+                  empty-text="После накопления ниш здесь появится распределение спроса."
+                />
+              </CardContent>
+            </Card>
+
+            <Card class="min-w-0 overflow-hidden">
+              <CardHeader>
+                <CardTitle>Ширина охвата по нишам</CardTitle>
+                <CardDescription>
+                  Показывает, какие ниши распределены по большему числу АЭС и где спрос носит более системный характер.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <MetricBarList
+                  :items="nppNicheCoverageItems"
+                  empty-text="После накопления данных здесь появится карта охвата по станциям."
+                />
+              </CardContent>
+            </Card>
+          </div>
+
+          <div class="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+            <Card class="min-w-0 overflow-hidden">
+              <CardHeader>
+                <CardTitle>Бюджетная структура ниш</CardTitle>
+                <CardDescription>
+                  Здесь акцент на стоимости: какие направления тянут на себя основной бюджет атомных закупок.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <MetricStackBar
+                  :segments="nppNicheBudgetSegments"
+                  empty-text="После появления сумм по нишам здесь появится бюджетная структура."
+                />
+              </CardContent>
+            </Card>
+
+            <Card class="min-w-0 overflow-hidden">
+              <CardHeader>
+                <CardTitle>Ниши с самой свежей активностью</CardTitle>
+                <CardDescription>
+                  Позволяет быстро увидеть, в каких категориях спрос обновлялся последним и где сейчас живой контур закупок.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <MetricBarList
+                  :items="nppNicheFreshnessItems"
+                  empty-text="После появления актуальных публикаций здесь появится свежая активность по нишам."
+                />
+              </CardContent>
+            </Card>
+          </div>
+
           <div
             v-for="niche in detail.item.value.nppNicheOrders"
             :key="niche.niche"
